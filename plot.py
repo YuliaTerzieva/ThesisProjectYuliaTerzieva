@@ -8,8 +8,8 @@ from VisualVestibularVerticalityModel import VisualVestibularVerticalityModel
 
 
 
-Frame = 0
-Head = 0
+Frame = -10
+Head = 30
 model = VisualVestibularVerticalityModel(Head, Frame)
 x = model.head_space_orients
 fig, axs = plt.subplots(2, 2)
@@ -24,7 +24,7 @@ axs[1, 1].set_title("Posterior")
 fig.tight_layout()
 plt.show()
 
-model.getRodProbability(7)
+model.getRodProbability(0)
 # rod_orients = np.array([-7, -4, -2, -1, 0, 1, 2, 4, 7])
 # # PCW = np.zeros(len(rod_orients))
 # # for i, r in enumerate(rod_orients):

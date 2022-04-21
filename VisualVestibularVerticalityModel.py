@@ -127,16 +127,16 @@ class VisualVestibularVerticalityModel:
         # plt.title("Test")
         # return self.head_space_orients[rod_in_space.argmax()]
 
-        MAP = self.head_space_orients[self.head_space_post.argmax()]
-        print("MAP is ", MAP)
-
-        rod_in_space = np.zeros(len(self.rod_orients))
-        for i, rod_orient in enumerate(self.rod_orients):
-            # Eye-in-head orientation transformation - Eye torsion + line-on-eye = Line_on_retina
-            line_on_retina = -(rod_orient - self.H_true) - self.A_ocr * math.sin(abs(self.H_true))
-            rod_in_space[i] = MAP - line_on_retina
-
-        # print("Rod in space", rod_in_space)
-        rod_in_space_cdf = np.cumsum(rod_in_space) / np.sum(rod_in_space)
-        PCW = self.lapse_rate + (1 - 2*self.lapse_rate) * rod_in_space_cdf
-        return PCW
+        # MAP = self.head_space_orients[self.head_space_post.argmax()]
+        # print("MAP is ", MAP)
+        #
+        # rod_in_space = np.zeros(len(self.rod_orients))
+        # for i, rod_orient in enumerate(self.rod_orients):
+        #     # Eye-in-head orientation transformation - Eye torsion + line-on-eye = Line_on_retina
+        #     line_on_retina = -(rod_orient - self.H_true) - self.A_ocr * math.sin(abs(self.H_true))
+        #     rod_in_space[i] = MAP - line_on_retina
+        #
+        # # print("Rod in space", rod_in_space)
+        # rod_in_space_cdf = np.cumsum(rod_in_space) / np.sum(rod_in_space)
+        # PCW = self.lapse_rate + (1 - 2*self.lapse_rate) * rod_in_space_cdf
+        # return PCW
