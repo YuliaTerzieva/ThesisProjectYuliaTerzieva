@@ -8,10 +8,11 @@ from scipy.optimize import minimize
 
 def negLogL(params, rod_orients, frame, GivenData, comments):
     """ This function is a helper one used by scipy.optimize.minimize for a psychometric curve fitting
-    :param GivenData:
     :param params: This is array of two values mu and sigma that we want to optimize
-    :param rod_orients: array of possible rod orientations
+    :param rod_orients: array of possible rod orientations TODO:this param can be removed and obtained through GivenData
     :param frame: single number holding the frame orientation of interest
+    :param GivenData: the dataframe with {frame orientations, rod orientations, response - CW or CCW}
+    :param comments: boolean - True is used for debugging TODO: remove this when done
     :return: the negative log likelihood of the data given some mu and sigma
     """
     mu = params[0]
@@ -61,6 +62,7 @@ def createMatrixProb(dataframe):
 
     return probabilities
 
+
 # THIS WORKS WELL FOR C2 AND C6 haven't check after that.
 # read in the data
 df = pd.read_csv('Controls/c2/c2_frame.txt', skiprows=13, sep=" ")
@@ -77,29 +79,27 @@ CCW_index = df.index[df['response'] == -1].tolist()
 CW_next_index = [i + 1 for i in CW_index if i != df.shape[0] - 1]
 CCW_next_index = [i + 1 for i in CCW_index if i != df.shape[0] - 1]
 
-
 CWdata = df.iloc[CW_next_index]
 CCWdata = df.iloc[CCW_next_index]
+
+# For both cases CW and CWW it is important that we put a constraint that sigma cannot be negative :
+cons = ({"type": "ineq", "fun": lambda params: params[1]})
 
 # Obtaining statistics for n-1 = CW frame = 0
 # For the minimize in general I hough I should pass as a parameter for the rods np.(CWdata.rodOri.unique())
 # because it is possible that after separating the dataset there are some rod representations missing, but turns out
-# there is no such problem so for simplicity I used rod_orients_all
-
-# For both cases CW and CWW it is important that we put a constraint that sigma cannot be negative :
-cons = ({"type" : "ineq", "fun" : lambda params: params[1]})
-
+# there is no such problem so for simplicity I used rod_orients_all . PS i can also remove this parameter and obrain the
+# rod orients in the function itself using givendata/CWdata/CCWdta
 CW_post_probs = createMatrixProb(CWdata)
 print("***** START OF CW DATA ANALYSIS *****")
-CW_results = minimize(negLogL, [1, 1.5], args=(rod_orients_all, 0, CWdata, True), constraints=cons)
-print(f" Done with CW results {CW_results.x[0]} and {CW_results.x[1]}")
+CW_results = minimize(negLogL, [1, 1.5], args=(rod_orients_all, 0, CWdata, False), constraints=cons)
+print(f" Done with CW results : mu = {CW_results.x[0]} and sigma = {CW_results.x[1]}")
 
 # Obtaining statistics for n-1 = CCW frame = 0
 CCW_post_probs = createMatrixProb(CCWdata)
 print("***** START OF CCW DATA ANALYSIS *****")
 CCW_results = minimize(negLogL, [1, 1.5], args=(rod_orients_all, 0, CCWdata, False), constraints=cons)
-print(f" Done with CCW results {CCW_results.x[0]} and {CCW_results.x[1]}")
-
+print(f" Done with CCW results : mu = {CCW_results.x[0]} and sigma = {CCW_results.x[1]}")
 
 plt.plot(np.sort(CWdata.rodOri.unique()), CW_post_probs[(np.where(frame_orients_all == 0)[0][0])], "bo",
          label="CW data")
@@ -112,4 +112,3 @@ plt.ylabel("P(CW)")
 plt.title("For head = 0 and frame = 0")
 plt.legend()
 plt.show()
-
