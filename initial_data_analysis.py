@@ -2,7 +2,7 @@ from math import log
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, binom
 from scipy.optimize import minimize
 
 
@@ -30,7 +30,8 @@ def negLogL(params, rod_orients, frame, GivenData, comments):
         if comments:
             print(f" the responses for this rod are {response}")
             print(f" the CW responses are {response.count(1)} and CCW {response.count(-1)}")
-        likelihood = response.count(1) * probs + response.count(-1) * (1 - probs)
+        likelihood = binom.pmf(response.count(1), len(response),
+                               probs)  # +,k,probs)response.count(1) * probs + response.count(-1) * (1 - probs)
         if comments:
             print(f" The likelihood is {likelihood}")
             print(f" The log likelihood is {log(likelihood)}")
@@ -65,7 +66,7 @@ def createMatrixProb(dataframe):
 
 # THIS WORKS WELL FOR C2 AND C6 haven't check after that.
 # read in the data
-df = pd.read_csv('Controls/c2/c2_frame.txt', skiprows=13, sep=" ")
+df = pd.read_csv('Controls/c6/c6_frame.txt', skiprows=13, sep=" ")
 # remove the last two columns (these are reactionTime and ??)
 df.drop('reactionTime', inplace=True, axis=1)
 df.drop('Unnamed: 4', inplace=True, axis=1)
