@@ -2,27 +2,37 @@ from math import log
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from matplotlib import rcParams, style
 from scipy.stats import norm, binom
 from scipy.optimize import minimize
 
 
+# Todo: 1) There should be constrain as lapse rate cannot go under 0
+#       2) Problems with likelihood becoming 0 and log of 0 is undefined
+#       3) In plotSingleSubject remove param rod_orientations
+#       as this can be obtained in the function negLogL from GivenData
+#       4) Change the plotting to seaborn and not matplotlib
+
+
 def negLogL(params, rod_orients, frame, GivenData, comments):
     """ This function is a helper one used by scipy.optimize.minimize for a psychometric curve fitting
-    :param params: This is array of two values mu and sigma that we want to optimize
-    :param rod_orients: array of possible rod orientations TODO:this param can be removed and obtained through GivenData
+    :param params: This is array of three values mu, sigma and lapse rate that we want to optimize
+    :param rod_orients: array of possible rod orientations
     :param frame: single number holding the frame orientation of interest
     :param GivenData: the dataframe with {frame orientations, rod orientations, response - CW or CCW}
-    :param comments: boolean - True is used for debugging TODO: remove this when done
+    :param comments: boolean - True is used for debugging
     :return: the negative log likelihood of the data given some mu and sigma
     """
     mu = params[0]
     sigma = params[1]
+    lapse = params[2]
+
     if comments:
         print(f" mu = {mu} and sigma = {sigma}")
     negLogLikelihood = 0
     for rod in rod_orients:
         curr_df = GivenData[(GivenData['frameOri'] == frame) & (GivenData['rodOri'] == rod)]
-        probs = norm.cdf(rod, mu, sigma)
+        probs = lapse + (1 - 2 * lapse) * norm.cdf(rod, mu, sigma)
         if comments:
             print(f"for rod {rod} we have probability of CW = {probs}")
         response = curr_df['response']
@@ -30,16 +40,26 @@ def negLogL(params, rod_orients, frame, GivenData, comments):
         if comments:
             print(f" the responses for this rod are {response}")
             print(f" the CW responses are {response.count(1)} and CCW {response.count(-1)}")
-        likelihood = binom.pmf(response.count(1), len(response),
-                               probs)  # +,k,probs)response.count(1) * probs + response.count(-1) * (1 - probs)
+        likelihood = binom.pmf(response.count(1), len(response), probs)
         if comments:
             print(f" The likelihood is {likelihood}")
             print(f" The log likelihood is {log(likelihood)}")
+        if likelihood == 0:
+            print(f"ops i got likelihood 0 for {mu}, {sigma} and {lapse}, "
+                  f"where prob was {probs} with CW {response.count(1)} for rod {rod}")
         negLogLikelihood += - log(likelihood)
     return negLogLikelihood
 
 
 def createMatrixProb(dataframe):
+    """
+    This function creates a matrix [frame orientations, rod orientations],
+    where each position has the probability of answering CW for this combination of frame and rod
+    (* From the data how many times did the participant answer CW out of the total amount of times
+    he saw this frame/rod combination*)
+    :param dataframe: with columns frame_orientation, rod_orientation, response
+    :return: probabilities - the matrix
+    """
     # check the rod and frame orientations (rods depend on subject and condition)
     rod_orients = np.sort(dataframe.rodOri.unique())
     frame_orients = np.sort(dataframe.frameOri.unique())
@@ -50,10 +70,6 @@ def createMatrixProb(dataframe):
 
     for f, frame in enumerate(frame_orients):
         for r, rod in enumerate(rod_orients):
-            # Todone : 1) Now i need to make it such that the points are not out ot 10, but out of depending on the rod,
-            # because when i separate the data the rods won't be out of 10. -> I achieved this by first selecting only the
-            # data with frame and rod and the diving the CW responses by all the responses
-
             # working_df are the rows in the dataset where we have the given frame and rod
             working_df = dataframe[(dataframe['frameOri'] == frame) & (dataframe['rodOri'] == rod)]
             if working_df.shape[0] > 0:
@@ -64,52 +80,65 @@ def createMatrixProb(dataframe):
     return probabilities
 
 
-# THIS WORKS WELL FOR C2 AND C6 haven't check after that.
-# read in the data
-df = pd.read_csv('Controls/c6/c6_frame.txt', skiprows=13, sep=" ")
-# remove the last two columns (these are reactionTime and ??)
-df.drop('reactionTime', inplace=True, axis=1)
-df.drop('Unnamed: 4', inplace=True, axis=1)
-rod_orients_all = np.sort(df.rodOri.unique())
-frame_orients_all = np.sort(df.frameOri.unique())
+def plotSingleSubject(subject, axs):
+    # read in the data
+    df = pd.read_csv(f'Controls/c{subject}/c{subject}_frame.txt', skiprows=13, sep=" ")
+    # remove the last two columns (these are reactionTime and ??)
+    df.drop('reactionTime', inplace=True, axis=1)
+    df.drop('Unnamed: 4', inplace=True, axis=1)
+    rod_orients_all = np.sort(df.rodOri.unique())
+    frame_orients_all = np.sort(df.frameOri.unique())
 
-# Separating the dataset based on CW and CCW responses on n-1
-CW_index = df.index[df['response'] == 1].tolist()
-CCW_index = df.index[df['response'] == -1].tolist()
+    # Separating the dataset based on CW and CCW responses on n-1
+    CW_index = df.index[df['response'] == 1].tolist()
+    CCW_index = df.index[df['response'] == -1].tolist()
 
-CW_next_index = [i + 1 for i in CW_index if i != df.shape[0] - 1]
-CCW_next_index = [i + 1 for i in CCW_index if i != df.shape[0] - 1]
+    CW_next_index = [i + 1 for i in CW_index if i != df.shape[0] - 1]
+    CCW_next_index = [i + 1 for i in CCW_index if i != df.shape[0] - 1]
 
-CWdata = df.iloc[CW_next_index]
-CCWdata = df.iloc[CCW_next_index]
+    CWdata = df.iloc[CW_next_index]
+    CCWdata = df.iloc[CCW_next_index]
 
-# For both cases CW and CWW it is important that we put a constraint that sigma cannot be negative :
-cons = ({"type": "ineq", "fun": lambda params: params[1]})
+    # For both cases CW and CWW it is important that we put a constraint that sigma and lapse cannot be negative :
+    cons = [{"type": "ineq", "fun": lambda params: params[1]}]
+    # {"type": "ineq", "fun": lambda params: params[2]}]
 
-# Obtaining statistics for n-1 = CW frame = 0
-# For the minimize in general I hough I should pass as a parameter for the rods np.(CWdata.rodOri.unique())
-# because it is possible that after separating the dataset there are some rod representations missing, but turns out
-# there is no such problem so for simplicity I used rod_orients_all . PS i can also remove this parameter and obrain the
-# rod orients in the function itself using givendata/CWdata/CCWdta
-CW_post_probs = createMatrixProb(CWdata)
-print("***** START OF CW DATA ANALYSIS *****")
-CW_results = minimize(negLogL, [1, 1.5], args=(rod_orients_all, 0, CWdata, False), constraints=cons)
-print(f" Done with CW results : mu = {CW_results.x[0]} and sigma = {CW_results.x[1]}")
+    # Obtaining statistics for n-1 = CW frame = 0
+    CW_post_probs = createMatrixProb(CWdata)
+    print("***** START OF CW DATA ANALYSIS *****")
+    CW_results = minimize(negLogL, [0, 2, 0.1], args=(rod_orients_all, 0, CWdata, False), constraints=cons)
+    print(
+        f" Done with CW results {subject}: mu = {CW_results.x[0]}, sigma = {CW_results.x[1]}, lapse = {CW_results.x[2]}")
 
-# Obtaining statistics for n-1 = CCW frame = 0
-CCW_post_probs = createMatrixProb(CCWdata)
-print("***** START OF CCW DATA ANALYSIS *****")
-CCW_results = minimize(negLogL, [1, 1.5], args=(rod_orients_all, 0, CCWdata, False), constraints=cons)
-print(f" Done with CCW results : mu = {CCW_results.x[0]} and sigma = {CCW_results.x[1]}")
+    # Obtaining statistics for n-1 = CCW frame = 0
+    CCW_post_probs = createMatrixProb(CCWdata)
+    print("***** START OF CCW DATA ANALYSIS *****")
+    CCW_results = minimize(negLogL, [0, 2, 0.1], args=(rod_orients_all, 0, CCWdata, False), constraints=cons)
+    print(
+        f" Done with CCW results {subject}: mu = {CCW_results.x[0]}, sigma = {CCW_results.x[1]}, lapse = {CCW_results.x[2]}")
 
-plt.plot(np.sort(CWdata.rodOri.unique()), CW_post_probs[(np.where(frame_orients_all == 0)[0][0])], "bo",
-         label="CW data")
-plt.plot(np.sort(CCWdata.rodOri.unique()), CCW_post_probs[(np.where(frame_orients_all == 0)[0][0])], "r.",
-         label="CCW data")
-plt.plot(rod_orients_all, norm.cdf(rod_orients_all, CW_results.x[0], CW_results.x[1]), "-k", label="curve CW")
-plt.plot(rod_orients_all, norm.cdf(rod_orients_all, CCW_results.x[0], CCW_results.x[1]), "--c", label="curve CCW")
-plt.xlabel("Rod orientations in degrees")
-plt.ylabel("P(CW)")
-plt.title("For head = 0 and frame = 0")
-plt.legend()
+    # plot the corresponding psychometric curves
+    axs.plot(np.sort(CWdata.rodOri.unique()), CW_post_probs[(np.where(frame_orients_all == 0)[0][0])], "bo")
+    axs.plot(np.sort(CCWdata.rodOri.unique()), CCW_post_probs[(np.where(frame_orients_all == 0)[0][0])], "r.")
+    axs.plot(rod_orients_all, norm.cdf(rod_orients_all, CW_results.x[0], CW_results.x[1]), "-b",
+             label=f"CW mu {round(CW_results.x[0], 2)}")
+    axs.plot(rod_orients_all, norm.cdf(rod_orients_all, CCW_results.x[0], CCW_results.x[1]), "--r",
+             label=f"CCW mu {round(CCW_results.x[0], 2)}")
+    axs.legend()
+    axs.set_title(f"Subject {subject}")
+    axs.label_outer()
+
+
+fig1, axs1 = plt.subplots(4, 2, sharex='all', sharey='all')
+fig2, axs2 = plt.subplots(4, 2, sharex='all', sharey='all')
+
+for subject, (ax1, ax2) in enumerate(zip(axs1.flatten(), axs2.flatten())):
+    plotSingleSubject(subject + 1, ax1)
+    plotSingleSubject(subject + 9, ax2)
+
+fig1.text(0.5, 0.04, 'Rod orientations', va='center', ha='center', fontsize=rcParams['axes.labelsize'])
+fig1.text(0.04, 0.5, 'P(CW)', va='center', ha='center', rotation='vertical', fontsize=rcParams['axes.labelsize'])
+fig2.text(0.5, 0.04, 'Rod orientations', va='center', ha='center', fontsize=rcParams['axes.labelsize'])
+fig2.text(0.04, 0.5, 'P(CW)', va='center', ha='center', rotation='vertical', fontsize=rcParams['axes.labelsize'])
+plt.show()
 plt.show()
