@@ -111,7 +111,8 @@ def plotFrame(df, frame, lapse=None, findLapse=False, print=False, axs=None):
 
     if findLapse:
         # returning mu, sigma and lapse for CW and mu, sigma and lapse for CCW
-        return [CW_results.x[0], CW_results.x[1], CW_results.x[2], CCW_results.x[0], CCW_results.x[1], CCW_results.x[2]]
+        return [CW_results.x[0], CW_results.x[1], CW_results.x[2], CCW_results.x[0], CCW_results.x[1],
+                CCW_results.x[2]]
     # returning mu and sigma for CW and mu and sigma for CCW
     return [CW_results.x[0], CW_results.x[1], CCW_results.x[0], CCW_results.x[1]]
 
@@ -135,7 +136,7 @@ def obtainLapseRates(nbParticipants):
     return lapseRates
 
 
-def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipant):
+def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipant, print=False):
     """
     This function loads the data for the given participant, subsequently it flips the negative frames
     of -40, -35, -30, -25, -20, -15, -10, -5 to positive and also flips the rod orientation and
@@ -164,20 +165,27 @@ def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipa
             data.at[i, 'rodOri'] = round(2 * gravityRod - data.at[i, 'rodOri'], 1)
             data.at[i, 'response'] = data.at[i, 'response'] * -1
 
-    fig1, axs1 = plt.subplots(5, 2, sharex='all', sharey='all')
-    for frame, ax1 in enumerate(axs1.flatten()):
-        musAndSigmasParticipant[frame] = plotFrame(data, frames[frame], lapse=lapseRates, print=False, axs=ax1)
+    if print:
+        fig1, axs1 = plt.subplots(5, 2, sharex='all', sharey='all')
+        for frame, ax1 in enumerate(axs1.flatten()):
+            musAndSigmasParticipant[frame] = plotFrame(data, frames[frame], lapse=lapseRates, print=True, axs=ax1)
 
-    fig1.text(0.5, 0.04, 'Rod orientations', va='center', ha='center', fontsize=rcParams['axes.labelsize'])
-    fig1.text(0.04, 0.5, 'P(CW)', va='center', ha='center', rotation='vertical', fontsize=rcParams['axes.labelsize'])
-    plt.suptitle(f"Subject {participant}")
-    plt.show()
+        fig1.text(0.5, 0.04, 'Rod orientations', va='center', ha='center', fontsize=rcParams['axes.labelsize'])
+        fig1.text(0.04, 0.5, 'P(CW)', va='center', ha='center', rotation='vertical',
+                  fontsize=rcParams['axes.labelsize'])
+        plt.suptitle(f"Subject {participant}")
+        plt.show()
+    else:
+        for f, frame in enumerate(frames):
+            musAndSigmasParticipant[f] = plotFrame(data, frame, lapse=lapseRates)
 
 
-lapseRatesParticipants = obtainLapseRates(16)
-# 16 participants, 10 frames, mu and sigma for CW and mu and sigma for CCW
-musAndSigmas = np.zeros((16, 10, 4))
-for s in range(1, 17):
-    plotAllFramesGivenParticipant(s, lapseRatesParticipants[s-1], musAndSigmas[s-1])
+class InitialAnalysis:
+    def __init__(self, nbParticipants):
+        self.nbParticipants = nbParticipants
 
-print(musAndSigmas)
+        lapseRatesParticipants = obtainLapseRates(nbParticipants)
+        # 16 participants, 10 frames, mu and sigma for CW and mu and sigma for CCW
+        self.musAndSigmas = np.zeros((nbParticipants, 10, 4))
+        for s in range(1, nbParticipants + 1):
+            plotAllFramesGivenParticipant(s, lapseRatesParticipants[s - 1], self.musAndSigmas[s - 1])

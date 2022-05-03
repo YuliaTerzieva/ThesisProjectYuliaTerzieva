@@ -103,7 +103,7 @@ class VisualVestibularVerticalityModel:
     def getRodProbability(self, rod_orient):
 
         line_on_retina = -(rod_orient - self.H_true) - self.A_ocr * math.sin(abs(self.H_true))
-        print("Line on retine", line_on_retina)
+        print("Line on retina", line_on_retina)
         line_in_space_X = self.head_space_orients - line_on_retina
 
         plt.plot(line_in_space_X, self.head_space_post)
