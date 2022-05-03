@@ -4,7 +4,8 @@ from scipy import stats
 
 from initial_data_analysis import InitialAnalysis
 
-analysis = InitialAnalysis(16)
+# experiment type can be "frame", "tilt15" or "tilt30"
+analysis = InitialAnalysis(16, experimentType="tilt15")
 data = analysis.musAndSigmas
 
 # we now have a table which is 16 x 10 x 4 - participants x frames x mus and sigmas

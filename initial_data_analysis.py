@@ -117,18 +117,19 @@ def plotFrame(df, frame, lapse=None, findLapse=False, print=False, axs=None):
     return [CW_results.x[0], CW_results.x[1], CCW_results.x[0], CCW_results.x[1]]
 
 
-def obtainLapseRates(nbParticipants):
+def obtainLapseRates(nbParticipants, experimentType="frame"):
     """
     This function obtains the lapse rates (individual stimulus independent errors) for CW and CCW previous response
     of all participants for head = 0 and frame = 0
     :param nbParticipants: integer
+    :param experimentType: string -> can be "frame", "tilt15", "tilt30"
     :return: double array with size(nbParticipants, 2)
     """
     # There are two lapse rates for each participant - for CW and CCW previous resposne
     lapseRates = np.zeros((nbParticipants, 2))
 
     for p in range(1, nbParticipants + 1):
-        data = pd.read_csv(f'Controls/c{p}/c{p}_frame.txt', skiprows=13, sep=" ")
+        data = pd.read_csv(f'Controls/c{p}/c{p}_{experimentType}.txt', skiprows=13, sep=" ")
         data.drop('reactionTime', inplace=True, axis=1)
         data.drop('Unnamed: 4', inplace=True, axis=1)
         _, _, lapseRates[p - 1][0], _, _, lapseRates[p - 1][1] = plotFrame(data, 0, findLapse=True)
@@ -136,7 +137,8 @@ def obtainLapseRates(nbParticipants):
     return lapseRates
 
 
-def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipant, print=False):
+def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipant, experimentType="frame",
+                                  print=False):
     """
     This function loads the data for the given participant, subsequently it flips the negative frames
     of -40, -35, -30, -25, -20, -15, -10, -5 to positive and also flips the rod orientation and
@@ -145,11 +147,13 @@ def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipa
     :param participant: a number between 1 and 16 (including)
     :param lapseRates: tuple - lapse rate for CW and CCW
     :param musAndSigmasParticipant:
+    :param experimentType: string -> can be "frame", "tilt15", "tilt30"
+    :param print: boolean - when True -> psychometric curves are plotted
     :return: nothing
     """
 
     # read in the data
-    data = pd.read_csv(f'Controls/c{participant}/c{participant}_frame.txt', skiprows=13, sep=" ")
+    data = pd.read_csv(f'Controls/c{participant}/c{participant}_{experimentType}.txt', skiprows=13, sep=" ")
     # remove the last two columns (these are reactionTime and ??)
     data.drop('reactionTime', inplace=True, axis=1)
     data.drop('Unnamed: 4', inplace=True, axis=1)
@@ -181,11 +185,13 @@ def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipa
 
 
 class InitialAnalysis:
-    def __init__(self, nbParticipants):
+    def __init__(self, nbParticipants, experimentType, plots=False):
         self.nbParticipants = nbParticipants
 
-        lapseRatesParticipants = obtainLapseRates(nbParticipants)
+        lapseRatesParticipants = obtainLapseRates(nbParticipants, experimentType)
+        print(f" The lapse rates for participants for experiment {experimentType} are {lapseRatesParticipants}")
         # 16 participants, 10 frames, mu and sigma for CW and mu and sigma for CCW
         self.musAndSigmas = np.zeros((nbParticipants, 10, 4))
         for s in range(1, nbParticipants + 1):
-            plotAllFramesGivenParticipant(s, lapseRatesParticipants[s - 1], self.musAndSigmas[s - 1])
+            plotAllFramesGivenParticipant(s, lapseRatesParticipants[s - 1], self.musAndSigmas[s - 1], experimentType,
+                                          print=plots)
