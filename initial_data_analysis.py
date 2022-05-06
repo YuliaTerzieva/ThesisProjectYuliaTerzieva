@@ -86,10 +86,11 @@ def plotFrame(df, frame, lapse=None, findLapse=False, print=False, axs=None):
 
     if findLapse:
         # For both cases CW and CWW it is important that we put a constraint that sigma and lapse cannot be negative :
-        cons = [{"type": "ineq", "fun": lambda params: params[1]},
-                {"type": "ineq", "fun": lambda params: params[2]}]
-        CW_results = minimize(negLogL, [0, 2, 0.1], args=(frame, CWdata, findLapse, lapse), constraints=cons, )
-        CCW_results = minimize(negLogL, [0, 2, 0.1], args=(frame, CCWdata, findLapse, lapse), constraints=cons)
+        # cons = [{"type": "ineq", "fun": lambda params: params[1]},
+        #         {"type": "ineq", "fun": lambda params: params[2]}]
+        bnds = ((-30, 30), (0.00001, 20), (0, 0.5))
+        CW_results = minimize(negLogL, [0, 2, 0.1], args=(frame, CWdata, findLapse, lapse), bounds=bnds)
+        CCW_results = minimize(negLogL, [0, 2, 0.1], args=(frame, CCWdata, findLapse, lapse), bounds=bnds)
     else:
         # For both cases CW and CWW it is important that we put a constraint that sigma and lapse cannot be negative :
         cons = [{"type": "ineq", "fun": lambda params: params[1]}]

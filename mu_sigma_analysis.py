@@ -1,11 +1,12 @@
 import math
 import numpy as np
+import pandas as pd
 from scipy import stats
 
 from initial_data_analysis import InitialAnalysis
 
 # experiment type can be "frame", "tilt15" or "tilt30"
-analysis = InitialAnalysis(16, experimentType="tilt15")
+analysis = InitialAnalysis(16, experimentType="frame")
 data = analysis.musAndSigmas
 
 # we now have a table which is 16 x 10 x 4 - participants x frames x mus and sigmas
@@ -14,6 +15,7 @@ data = analysis.musAndSigmas
 pValPerFrame = np.zeros(10)
 for f in range(0, 10):
     # the difference for all 16 participants
+
     diff = data[:, f, 0] - data[:, f, 2]
     print(f" For frame {f} we have difference array {diff}")
     mean_diff = np.mean(diff)
@@ -24,9 +26,37 @@ for f in range(0, 10):
     T = (mean_diff - 0) / (s_diff / math.sqrt(n_diff))
     df = n_diff - 1
     print(f" The T values is {T} and df is {df}")
-    pValPerFrame[f] = stats.t.sf(np.abs(T), df) #* 2
+    pValPerFrame[f] = stats.t.sf(np.abs(T), df) * 2
 
 print(pValPerFrame)
 pValPerFrame[pValPerFrame > 0.05] = 1
 pValPerFrame[pValPerFrame <= 0.05] = 0
 print(pValPerFrame)
+
+from scipy.stats import ttest_rel
+
+p = np.zeros(10)
+for f in range(0, 10):
+    t, p[f] = ttest_rel(data[:, f, 0], data[:, f, 2])
+
+print(p)
+
+from statsmodels.stats.anova import AnovaRM
+
+dm = np.empty((320, 4))
+row = 0
+for s in range(0, 16):
+    for f in range(0, 10):
+        for pre in range(0, 2):
+            dm[row, :] = [s, f, pre, data[s, f, pre * 2]]
+            row = row + 1
+
+dmm = pd.DataFrame(dm, columns=['nr', 'frame_orientation', 'pre-response', 'mu'])
+
+dmm.to_pickle("dataframemus")
+
+aov = AnovaRM(dmm,
+              depvar='mu',
+              subject='nr',
+              within=['pre-response', 'frame_orientation']).fit()
+print(aov)
