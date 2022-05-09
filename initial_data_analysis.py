@@ -1,18 +1,13 @@
 import sys
-from math import log
+from math import log, floor
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from matplotlib import rcParams
 from scipy.stats import norm, binom
 from scipy.optimize import minimize
+from random import randrange
 
-
-# Todo: 1) There should be constrain as lapse rate cannot go under 0
-#       done -> 2) Problems with likelihood becoming 0 and log of 0 is undefined
-#       done -> 3) In plotSingleSubject remove param rod_orientations
-#       as this can be obtained in the function negLogL from GivenData
-#       4) Change the plotting to seaborn and not matplotlib
 
 def createMatrixProb(dataframe):
     """
@@ -40,37 +35,46 @@ def createMatrixProb(dataframe):
     return probabilities
 
 
-def negLogL(params, frame, GivenData, findLapse, lapsevalue):
+def negLogL(params, GivenData):
+    # todo : fix the description
     """ This function is a helper one used by scipy.optimize.minimize for a psychometric curve fitting
     :param params: This is array of three values mu, sigma and lapse rate that we want to optimize
-    :param frame: single number holding the frame orientation of interest
     :param GivenData: the dataframe with {frame orientations, rod orientations, response - CW or CCW}
     :return: the negative log likelihood of the data given some mu and sigma
-    :param findLapse: boolean - if True there is 3rd parameter to be optimized - lapse rate
-    :param lapsevalue: numeric value - if findLapse is False, the lapse in the formula is lapsevalue
     """
-    mu = params[0]
-    sigma = params[1]
-    if findLapse:
-        lapse = params[2]
-    else:
-        lapse = lapsevalue
     rod_orients = np.sort(GivenData.rodOri.unique())
+    frame_orients = np.sort(GivenData.frameOri.unique())
+    nbFrames = len(frame_orients)
+    mus = params[0:nbFrames]
+    sigmas = params[nbFrames:nbFrames * 2]
+    lapse = params[nbFrames * 2]
     negLogLikelihood = 0
 
-    for rod in rod_orients:
-        curr_df = GivenData[(GivenData['frameOri'] == frame) & (GivenData['rodOri'] == rod)]
-        probs = lapse + (1 - 2 * lapse) * norm.cdf(rod, mu, sigma)
-        response = curr_df['response']
-        response = response.tolist()
-        likelihood = binom.pmf(response.count(1), len(response), probs)
-        if likelihood == 0:
-            likelihood = sys.float_info.min
-        negLogLikelihood += - log(likelihood)
-    return negLogLikelihood
+    count = 0
+    for f, frame in enumerate(frame_orients):
+        for rod in rod_orients:
+            curr_df = GivenData[(GivenData['frameOri'] == frame) & (GivenData['rodOri'] == rod)]
+            probs = lapse + (1 - 2 * lapse) * norm.cdf(rod, mus[f], sigmas[f])
+            response = curr_df['response']
+            response = response.tolist()
+            likelihood = binom.pmf(response.count(1), len(response), probs)
+            if likelihood == 0:
+                count = count + 1
+                likelihood = sys.float_info.min
+            negLogLikelihood += - log(likelihood)
+    # I was thinking that even if we don't divide it it will work :) we are just minimizing this number anyway
+    if count != 0:
+        print(f"number of times with likelihood 0 {count}")
+    return negLogLikelihood  # / 10
 
 
-def plotFrame(df, frame, lapse=None, findLapse=False, print=False, axs=None):
+def optimizeMSLPlot(df, plot=False):
+    """
+    Todo : write down the description
+    :param df:
+    :param plot:
+    :return:
+    """
     # Separating the dataset based on CW and CCW responses on n-1
     CW_index = df.index[df['response'] == 1].tolist()
     CCW_index = df.index[df['response'] == -1].tolist()
@@ -84,73 +88,68 @@ def plotFrame(df, frame, lapse=None, findLapse=False, print=False, axs=None):
     CW_post_probs = createMatrixProb(CWdata)
     CCW_post_probs = createMatrixProb(CCWdata)
 
-    if findLapse:
-        # For both cases CW and CWW it is important that we put a constraint that sigma and lapse cannot be negative :
-        # cons = [{"type": "ineq", "fun": lambda params: params[1]},
-        #         {"type": "ineq", "fun": lambda params: params[2]}]
-        bnds = ((-30, 30), (0.00001, 20), (0, 0.5))
-        CW_results = minimize(negLogL, [0, 2, 0.1], args=(frame, CWdata, findLapse, lapse), bounds=bnds)
-        CCW_results = minimize(negLogL, [0, 2, 0.1], args=(frame, CCWdata, findLapse, lapse), bounds=bnds)
-    else:
-        # For both cases CW and CWW it is important that we put a constraint that sigma and lapse cannot be negative :
-        cons = [{"type": "ineq", "fun": lambda params: params[1]}]
-        CW_results = minimize(negLogL, [0, 2], args=(frame, CWdata, findLapse, lapse[0]), constraints=cons, )
-        CCW_results = minimize(negLogL, [0, 2], args=(frame, CCWdata, findLapse, lapse[1]), constraints=cons)
+    nbFrames = len(np.sort(df.frameOri.unique()))
+    # mu is between -30 and 30, sigma is between 0.00001 and 4 and lapse is between 0 and 0.5
+    bnds = np.zeros((2 * nbFrames + 1), dtype=object)
+    for i in range(nbFrames):
+        bnds[i] = (-10, 10)
+        bnds[i + nbFrames] = (0.00001, 4)
+    bnds[nbFrames * 2] = (0, 0.3)
 
-    if print:
+    # the initial parameter guesses are 0 for mu, 2 for sigma and 0.1 for lapse
+    parameters = np.zeros((2 * nbFrames + 1))
+    parameters[0:nbFrames] = 0
+    parameters[nbFrames:nbFrames * 2] = 2
+    parameters[nbFrames * 2] = 0.1
+
+    CW_results = minimize(negLogL, parameters, args=CWdata, bounds=bnds)
+    print(f"Done with CW minimization the results are {CW_results.x}")
+    CCW_results = minimize(negLogL, parameters, args=CCWdata, bounds=bnds)
+    print(f"Done with CCW minimization the results are {CCW_results.x}")
+
+    if plot:
+        plt.subplots(5, 2, sharex='all', sharey='all')
         rod_orients_all = np.sort(df.rodOri.unique())
         frame_orients_all = np.sort(df.frameOri.unique())
-        axs.plot(rod_orients_all, CW_post_probs[(np.where(frame_orients_all == frame)[0][0])], "bo")
-        axs.plot(rod_orients_all, CCW_post_probs[(np.where(frame_orients_all == frame)[0][0])], "r.")
-        axs.plot(rod_orients_all, norm.cdf(rod_orients_all, CW_results.x[0], CW_results.x[1]), "-b",
-                 label=f"CW mu {round(CW_results.x[0], 2)}")
-        axs.plot(rod_orients_all, norm.cdf(rod_orients_all, CCW_results.x[0], CCW_results.x[1]), "--r",
-                 label=f"CCW mu {round(CCW_results.x[0], 2)}")
-        axs.legend()
-        axs.set_title(f"Frame {frame}")
-        axs.label_outer()
+        for f, frame in enumerate(frame_orients_all):
+            plt.subplot(5, 2, f + 1)
+            plt.plot(rod_orients_all, CW_post_probs[(np.where(frame_orients_all == frame)[0][0])], "bo")
+            plt.subplot(5, 2, f + 1)
+            plt.plot(rod_orients_all,
+                     CCW_post_probs[(np.where(frame_orients_all == frame)[0][0])], "r.")
+            plt.subplot(5, 2, f + 1)
+            plt.plot(rod_orients_all,
+                     norm.cdf(rod_orients_all, CW_results.x[f], CW_results.x[f + 10]),
+                     "-b",
+                     label=f"CW mu {round(CW_results.x[f], 2)}")
+            plt.subplot(5, 2, f + 1)
+            plt.plot(rod_orients_all,
+                     norm.cdf(rod_orients_all, CCW_results.x[f], CCW_results.x[f + 10]),
+                     "--r",
+                     label=f"CCW mu {round(CCW_results.x[f], 2)}")
+            plt.subplot(5, 2, f + 1)
+            plt.legend()
+            plt.title(f"Frame {frame}")
+        # plt.show()
+        plt.savefig(f'plot{randrange(1000)}.png')
+    # returning mus and sigmas and lapses for CW and CCW
+    return [CW_results.x, CCW_results.x]
 
-    if findLapse:
-        # returning mu, sigma and lapse for CW and mu, sigma and lapse for CCW
-        return [CW_results.x[0], CW_results.x[1], CW_results.x[2], CCW_results.x[0], CCW_results.x[1],
-                CCW_results.x[2]]
-    # returning mu and sigma for CW and mu and sigma for CCW
-    return [CW_results.x[0], CW_results.x[1], CCW_results.x[0], CCW_results.x[1]]
 
-
-def obtainLapseRates(nbParticipants, experimentType="frame"):
+def plotAllFramesGivenParticipant(participant, experimentType="frame",
+                                  plot=False):
     """
-    This function obtains the lapse rates (individual stimulus independent errors) for CW and CCW previous response
-    of all participants for head = 0 and frame = 0
-    :param nbParticipants: integer
-    :param experimentType: string -> can be "frame", "tilt15", "tilt30"
-    :return: double array with size(nbParticipants, 2)
-    """
-    # There are two lapse rates for each participant - for CW and CCW previous resposne
-    lapseRates = np.zeros((nbParticipants, 2))
-
-    for p in range(1, nbParticipants + 1):
-        data = pd.read_csv(f'Controls/c{p}/c{p}_{experimentType}.txt', skiprows=13, sep=" ")
-        data.drop('reactionTime', inplace=True, axis=1)
-        data.drop('Unnamed: 4', inplace=True, axis=1)
-        _, _, lapseRates[p - 1][0], _, _, lapseRates[p - 1][1] = plotFrame(data, 0, findLapse=True)
-
-    return lapseRates
-
-
-def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipant, experimentType="frame",
-                                  print=False):
-    """
-    This function loads the data for the given participant, subsequently it flips the negative frames
+    # todo : only when frame we can plot!!!
+    This function loads the data for the given participant,
+    subsequently if the experiment type is 'frame' it flips the negative frames
     of -40, -35, -30, -25, -20, -15, -10, -5 to positive and also flips the rod orientation and
-    response for each instance. For each of the resulting 10 frame orientation makes a plot with
+    response for each instance. If it is not 'frame' it skips this step.
+    For each of the resulting 10/18 frame orientation makes a plot with
     psychometric curves for CW vs CCW previous response
     :param participant: a number between 1 and 16 (including)
-    :param lapseRates: tuple - lapse rate for CW and CCW
-    :param musAndSigmasParticipant:
     :param experimentType: string -> can be "frame", "tilt15", "tilt30"
-    :param print: boolean - when True -> psychometric curves are plotted
-    :return: nothing
+    :param plot: boolean - when True -> psychometric curves are plotted
+    :return: todo : write this down
     """
 
     # read in the data
@@ -159,40 +158,42 @@ def plotAllFramesGivenParticipant(participant, lapseRates, musAndSigmasParticipa
     data.drop('reactionTime', inplace=True, axis=1)
     data.drop('Unnamed: 4', inplace=True, axis=1)
 
-    rod_orients_all = np.sort(data.rodOri.unique())
-    gravityRod = sum(rod_orients_all) / len(rod_orients_all)
-    frame_orients_all = np.sort(data.frameOri.unique())
-    frames = [-45, 0, 5, 10, 15, 20, 25, 30, 35, 40]
-    for toBeFlipped in list(set(frame_orients_all) - set(frames)):
-        indices = data.index[data['frameOri'] == toBeFlipped].tolist()
-        for i in indices:
-            data.at[i, 'frameOri'] = toBeFlipped * -1
-            data.at[i, 'rodOri'] = round(2 * gravityRod - data.at[i, 'rodOri'], 1)
-            data.at[i, 'response'] = data.at[i, 'response'] * -1
+    if experimentType == "frame":
+        rod_orients_all = np.sort(data.rodOri.unique())
+        gravityRod = sum(rod_orients_all) / len(rod_orients_all)
+        frame_orients_all = np.sort(data.frameOri.unique())
+        frames = [-45, 0, 5, 10, 15, 20, 25, 30, 35, 40]
+        for toBeFlipped in list(set(frame_orients_all) - set(frames)):
+            indices = data.index[data['frameOri'] == toBeFlipped].tolist()
+            for i in indices:
+                data.at[i, 'frameOri'] = toBeFlipped * -1
+                data.at[i, 'rodOri'] = round(2 * gravityRod - data.at[i, 'rodOri'], 1)
+                data.at[i, 'response'] = data.at[i, 'response'] * -1
 
-    if print:
-        fig1, axs1 = plt.subplots(5, 2, sharex='all', sharey='all')
-        for frame, ax1 in enumerate(axs1.flatten()):
-            musAndSigmasParticipant[frame] = plotFrame(data, frames[frame], lapse=lapseRates, print=True, axs=ax1)
+    nbFrames = len(np.sort(data.frameOri.unique()))
 
-        fig1.text(0.5, 0.04, 'Rod orientations', va='center', ha='center', fontsize=rcParams['axes.labelsize'])
-        fig1.text(0.04, 0.5, 'P(CW)', va='center', ha='center', rotation='vertical',
-                  fontsize=rcParams['axes.labelsize'])
-        plt.suptitle(f"Subject {participant}")
-        plt.show()
-    else:
-        for f, frame in enumerate(frames):
-            musAndSigmasParticipant[f] = plotFrame(data, frame, lapse=lapseRates)
+    resultingMusAndSigmas = optimizeMSLPlot(data, plot=plot)
+    musAndSigmasParticipant = [[resultingMusAndSigmas[0][i], resultingMusAndSigmas[0][i],
+                                resultingMusAndSigmas[0][i + nbFrames], resultingMusAndSigmas[0][i + nbFrames]]
+                               for i in range(nbFrames)]
+    # The lapse rates for CW nd CCW
+    lapseParticipant = [resultingMusAndSigmas[0][nbFrames * 2], resultingMusAndSigmas[1][nbFrames * 2]]
+    return musAndSigmasParticipant, lapseParticipant
 
 
 class InitialAnalysis:
     def __init__(self, nbParticipants, experimentType, plots=False):
-        self.nbParticipants = nbParticipants
 
-        lapseRatesParticipants = obtainLapseRates(nbParticipants, experimentType)
-        print(f" The lapse rates for participants for experiment {experimentType} are {lapseRatesParticipants}")
-        # 16 participants, 10 frames, mu and sigma for CW and mu and sigma for CCW
-        self.musAndSigmas = np.zeros((nbParticipants, 10, 4))
+        self.pCounter = 0
+        self.nbParticipants = nbParticipants
+        if experimentType == 'frame':
+            # 16 participants, 10 frames, mu and sigma for CW and mu and sigma for CCW
+            self.musAndSigmas = np.zeros((nbParticipants, 10, 4))
+        else:
+            # 16 participants, 18 frames, mu and sigma for CW and mu and sigma for CCW
+            self.musAndSigmas = np.zeros((nbParticipants, 18, 4))
+        self.lapses = np.zeros((nbParticipants, 2))
         for s in range(1, nbParticipants + 1):
-            plotAllFramesGivenParticipant(s, lapseRatesParticipants[s - 1], self.musAndSigmas[s - 1], experimentType,
-                                          print=plots)
+            self.musAndSigmas[s - 1], self.lapses[s - 1] = plotAllFramesGivenParticipant(s, experimentType,
+                                                                                         plot=plots)
+            print(f"Done with participant {s}")

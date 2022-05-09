@@ -2,13 +2,19 @@ import math
 import numpy as np
 import pandas as pd
 from scipy import stats
-
+from scipy.stats import ttest_rel
+from statsmodels.stats.anova import AnovaRM
 from initial_data_analysis import InitialAnalysis
+import time
+
 
 # experiment type can be "frame", "tilt15" or "tilt30"
-analysis = InitialAnalysis(16, experimentType="frame")
+start = time.time()
+analysis = InitialAnalysis(16, experimentType="frame", plots=True)
 data = analysis.musAndSigmas
-
+lapses = analysis.lapses
+end = time.time()
+print(f"Time passed = {end - start}")
 # we now have a table which is 16 x 10 x 4 - participants x frames x mus and sigmas
 # I'm doing an inference for paired data - t-test
 # I want to find the average difference between CW and CCW n-1 train responses for all participants for given frame
@@ -29,34 +35,33 @@ for f in range(0, 10):
     pValPerFrame[f] = stats.t.sf(np.abs(T), df) * 2
 
 print(pValPerFrame)
-pValPerFrame[pValPerFrame > 0.05] = 1
-pValPerFrame[pValPerFrame <= 0.05] = 0
+pValPerFrame[pValPerFrame > 0.05] = 0
+pValPerFrame[pValPerFrame <= 0.05] = 1
 print(pValPerFrame)
 
-from scipy.stats import ttest_rel
+# second analysis
 
 p = np.zeros(10)
 for f in range(0, 10):
     t, p[f] = ttest_rel(data[:, f, 0], data[:, f, 2])
 
 print(p)
-
-from statsmodels.stats.anova import AnovaRM
-
+frame = [-45, 0, 5, 10, 15, 20, 25, 30, 35, 40]
+# third analysis
 dm = np.empty((320, 4))
 row = 0
 for s in range(0, 16):
     for f in range(0, 10):
         for pre in range(0, 2):
-            dm[row, :] = [s, f, pre, data[s, f, pre * 2]]
+            dm[row, :] = [s, frame[f], pre, data[s, f, pre * 2]]
             row = row + 1
 
-dmm = pd.DataFrame(dm, columns=['nr', 'frame_orientation', 'pre-response', 'mu'])
+dmm = pd.DataFrame(dm, columns=['nr', 'frame_orientation', 'pre_response', 'mu'])
 
-dmm.to_pickle("dataframemus")
+dmm.to_pickle("dataframemusnotilt")
 
 aov = AnovaRM(dmm,
               depvar='mu',
               subject='nr',
-              within=['pre-response', 'frame_orientation']).fit()
+              within=['pre_response', 'frame_orientation']).fit()
 print(aov)
