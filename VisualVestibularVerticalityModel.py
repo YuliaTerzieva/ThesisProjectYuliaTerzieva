@@ -70,7 +70,6 @@ class VisualVestibularVerticalityModel:
         self.vest_likelihood = norm.pdf(self.head_space_orients, self.H_true, sigma_hs)
         self.vest_likelihood = self.vest_likelihood / np.sum(self.vest_likelihood)
 
-
     def contextual_likelihood(self):
         """This is the summary line
 
@@ -97,7 +96,6 @@ class VisualVestibularVerticalityModel:
         self.cont_likelihood = np.degrees(self.cont_likelihood)
         self.cont_likelihood = self.cont_likelihood / np.sum(self.cont_likelihood)
 
-
     def head_in_space_posterior(self):
         """ Function calculating the head in space posterior
 
@@ -113,16 +111,17 @@ class VisualVestibularVerticalityModel:
         self.head_space_post = self.head_space_post / np.sum(self.head_space_post)
 
     def getRodProbability(self, rod_orient):
-
         self.head_in_space_posterior()
         # For the computation of rod on retina I'm using formula 7
+        # keep in mnd that rod_on_retina is with a negative sign, because images on the retina are flipped
+
         rod_on_retina = int(self.H_true - rod_orient - self.A_ocr * math.sin(abs(self.H_true)))
 
+        print(f"For head being {self.H_true}, frame being {self.F_true} and rod {rod_orient}")
         print(f" we have {self.H_true - rod_orient} + {- self.A_ocr * math.sin(abs(self.H_true))}")
         print(f" the rod on retina is {rod_on_retina}")
 
         self.rod_space_prob = np.append(self.head_space_post[rod_on_retina:], self.head_space_post[:rod_on_retina])
-
 
     def plot(self, rod_orient):
         self.getRodProbability(rod_orient)

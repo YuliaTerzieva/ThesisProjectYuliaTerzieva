@@ -15,6 +15,7 @@ data = analysis.musAndSigmas
 lapses = analysis.lapses
 end = time.time()
 print(f"Time passed = {end - start}")
+print(f"The lapse rates for participants are {lapses}")
 # we now have a table which is 16 x 10 x 4 - participants x frames x mus and sigmas
 # I'm doing an inference for paired data - t-test
 # I want to find the average difference between CW and CCW n-1 train responses for all participants for given frame
@@ -46,7 +47,7 @@ for f in range(0, 10):
     t, p[f] = ttest_rel(data[:, f, 0], data[:, f, 2])
 
 print(p)
-frame = [-45, 0, 5, 10, 15, 20, 25, 30, 35, 40]
+frame = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 # third analysis
 dm = np.empty((320, 4))
 row = 0
@@ -58,7 +59,7 @@ for s in range(0, 16):
 
 dmm = pd.DataFrame(dm, columns=['nr', 'frame_orientation', 'pre_response', 'mu'])
 
-dmm.to_pickle("dataframemusnotilt")
+dmm.to_pickle("data-Frame-17-05")
 
 aov = AnovaRM(dmm,
               depvar='mu',
