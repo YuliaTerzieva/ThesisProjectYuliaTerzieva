@@ -59,7 +59,7 @@ for s in range(0, 16):
 
 dmm = pd.DataFrame(dm, columns=['nr', 'frame_orientation', 'pre_response', 'mu'])
 
-dmm.to_pickle("data-Frame-17-05")
+dmm.to_pickle("data-Frame-23-05-no-const")
 
 aov = AnovaRM(dmm,
               depvar='mu',

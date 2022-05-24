@@ -1,35 +1,37 @@
 import pandas as pd
+import numpy as np
 from matplotlib import pyplot as plt
 from statsmodels.stats.anova import AnovaRM
 
-dmm = pd.read_pickle("dfFrame13fixedSigma")
-dmm2 = pd.read_pickle("dfFrame13fixedSigmaSeparateLikelihood")
+dmm = pd.read_pickle("data-Frame-23-05-no-const")
 
-aov = AnovaRM(dmm,
-              depvar='mu',
-              subject='nr',
-              within=['pre_response', 'frame_orientation']).fit()
-print(aov)
+# aov = AnovaRM(dmm,
+#               depvar='mu',
+#               subject='nr',
+#               within=['pre_response', 'frame_orientation']).fit()
+# print(aov)
 
-# mn = dmm.groupby('frame_orientation').mean()
-# plt.plot(mn['mu'])
-# # mn['mu'].plot()
-# plt.show()
-#
-# print(mn)
+# print(dmm.head())
+# print(dmm.shape)
+# new = dmm.groupby('frame_orientation', 'pre_response').mean()
+# print(new)
 
-aov2 = AnovaRM(dmm2,
-               depvar='mu',
-               subject='nr',
-               within=['pre_response', 'frame_orientation']).fit()
-print(aov2)
+musDifference = np.zeros(10)
+frames = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+for f, frame in enumerate(frames):
+    cur = dmm[dmm['frame_orientation'] == frame]
+    curr = cur.groupby('pre_response').mean()
+    musDifference[f] = curr['mu'][1]-curr['mu'][0]
 
-# mn2 = dmm2.groupby('frame_orientation').mean()
-# plt.plot(mn2['mu'])
-# # mn['mu'].plot()
-# plt.show()
-#
-# print(mn2)
+plt.plot(frames, musDifference)
+plt.xlabel("Frame orientation")
+plt.ylabel("Difference between CW and CCW ")
+plt.show()
 
-# print(dmm['mu'].eq(dmm2['mu']))
-print(dmm[abs(dmm['mu'] - dmm2['mu']) > 0.1])
+mn = dmm.groupby('frame_orientation').mean()
+print(mn)
+plt.plot(mn['mu'])
+plt.show()
+
+print(mn)
+

@@ -1,5 +1,3 @@
-import sys
-from math import log
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -83,28 +81,29 @@ def optimizeMSLPlot(df, plot=False):
     for i in range(nbFrames):
         bnds[i] = (-10, 10)
         bnds[i + nbFrames] = (0.1, 8)
-    bnds[nbFrames * 2] = (0, 0.3)
+    bnds[nbFrames * 2] = (0, 0.1)
 
     # constrains every next sigma should be bigger or equal than the previous one, not smaller
-    const = [{"type": "ineq", "fun": lambda param: param[nbFrames + 1] - param[nbFrames]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 2] - param[nbFrames + 1]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 3] - param[nbFrames + 2]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 4] - param[nbFrames + 3]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 5] - param[nbFrames + 4]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 6] - param[nbFrames + 5]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 7] - param[nbFrames + 6]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 8] - param[nbFrames + 7]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 9] - param[nbFrames + 8]}]
+    # const = [{"type": "ineq", "fun": lambda param: param[nbFrames + 1] - param[nbFrames]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 2] - param[nbFrames + 1]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 3] - param[nbFrames + 2]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 4] - param[nbFrames + 3]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 5] - param[nbFrames + 4]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 6] - param[nbFrames + 5]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 7] - param[nbFrames + 6]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 8] - param[nbFrames + 7]},
+    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 9] - param[nbFrames + 8]}]
 
     # the initial parameter guesses are 0 for mu, 1 for sigma and 0.1 for lapse
     parameters = np.zeros((2 * nbFrames + 1))
     parameters[0:nbFrames] = 0
     parameters[nbFrames:nbFrames * 2] = 2
-    parameters[nbFrames * 2] = 0.1
+    parameters[nbFrames * 2] = 0.05
 
-    CW_results = minimize(negLogL, parameters, constraints=const, args=CWdata, bounds=bnds)
+
+    CW_results = minimize(negLogL, parameters, args=CWdata, bounds=bnds)
     print(f"Done with CW minimization the results are {CW_results.x}")
-    CCW_results = minimize(negLogL, parameters, constraints=const, args=CCWdata, bounds=bnds)
+    CCW_results = minimize(negLogL, parameters, args=CCWdata, bounds=bnds)
     print(f"Done with CCW minimization the results are {CCW_results.x}")
 
     if plot and nbFrames == 10:
