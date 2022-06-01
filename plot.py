@@ -7,31 +7,6 @@ from VisualVestibularVerticalityModel import VisualVestibularVerticalityModel
 from initial_data_analysis import createMatrixProb
 
 
-###### TEST STUFF, PRINTING PROBS FOR TEST #######
-# data = pd.read_csv('Controls/c7/c7_frame.txt', skiprows=13, sep=" ")
-# data.drop('reactionTime', inplace=True, axis=1)
-# data.drop('Unnamed: 4', inplace=True, axis=1)
-# model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-# model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-# model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-# model3020 = VisualVestibularVerticalityModel([30, -20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-#
-# matrix = createMatrixProb(data)
-# rod_orients_all = np.sort(data.rodOri.unique())
-# frame_orients_all = np.sort(data.frameOri.unique())
-# rods = np.linspace(-15, 15, 101)
-#
-# for frame in frame_orients_all :
-#     cur_mod = VisualVestibularVerticalityModel([0, frame, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-#     plt.plot(rods, cur_mod.getCWProbability(rods))
-#     print(np.where(frame_orients_all == -20))
-#     plt.plot(rod_orients_all, matrix[(np.where(frame_orients_all == -20)[0][0])], 'ro')
-#     plt.xlabel("Rod orientations")
-#     plt.ylabel("P(CW | rod)")
-#     plt.title(f"Head 0, Frame {frame}")
-#     plt.show()
-
-
 def negLogL(params, GivenData):
     """ This function is a helper one used by scipy.optimize.minimize for a parameter estimation
     :param params: [sigma_hp, alpha_hs, beta_hs, k_ver, k_hor, tau, lapse]
@@ -44,11 +19,11 @@ def negLogL(params, GivenData):
     lapse = params[6]
 
     negLogLikelihood = 0
-    for frame in frame_orients:
+    for f, frame in enumerate(frame_orients):
         # the parameters - the head is set to 0 the rest is from the parameters we are optimizing
         model = VisualVestibularVerticalityModel(np.append([0, frame], params[:6]))
         curr_df_f = GivenData[(GivenData['frameOri'] == frame)]
-        for rod in rod_orients:
+        for r, rod in enumerate(rod_orients):
             probs = lapse + (1 - 2 * lapse) * model.getCWProbability(rod)
             curr_df = curr_df_f[(curr_df_f['rodOri'] == rod)]
             negLogLikelihood += - binom.logpmf(curr_df[curr_df['response'] == 1].shape[0], curr_df['response'].shape[0],
@@ -73,7 +48,7 @@ def modelFitting():
     print(result.x)
     print(type(result.x))
 
-def plotsFigureX():
+def plotsFigure1():
     model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
@@ -119,7 +94,7 @@ def plotsFigureX():
     plt.show()
 
 
-def plotsFigureY():
+def plotsFigure2():
     model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
@@ -134,3 +109,27 @@ def plotsFigureY():
     plt.show()
 
 modelFitting()
+
+###### TEST STUFF, PRINTING PROBS FOR TEST #######
+# data = pd.read_csv('Controls/c7/c7_frame.txt', skiprows=13, sep=" ")
+# data.drop('reactionTime', inplace=True, axis=1)
+# data.drop('Unnamed: 4', inplace=True, axis=1)
+# model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
+# model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
+# model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
+# model3020 = VisualVestibularVerticalityModel([30, -20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
+#
+# matrix = createMatrixProb(data)
+# rod_orients_all = np.sort(data.rodOri.unique())
+# frame_orients_all = np.sort(data.frameOri.unique())
+# rods = np.linspace(-15, 15, 101)
+#
+# for frame in frame_orients_all :
+#     cur_mod = VisualVestibularVerticalityModel([0, frame, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
+#     plt.plot(rods, cur_mod.getCWProbability(rods))
+#     print(np.where(frame_orients_all == -20))
+#     plt.plot(rod_orients_all, matrix[(np.where(frame_orients_all == -20)[0][0])], 'ro')
+#     plt.xlabel("Rod orientations")
+#     plt.ylabel("P(CW | rod)")
+#     plt.title(f"Head 0, Frame {frame}")
+#     plt.show()

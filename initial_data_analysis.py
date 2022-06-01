@@ -25,7 +25,7 @@ def createMatrixProb(dataframe):
         for r, rod in enumerate(rod_orients):
             # working_df are the rows in the dataset where we have the given frame and rod
             working_df = dataframe[(dataframe['frameOri'] == frame) & (dataframe['rodOri'] == rod)]
-            if working_df.shape[0] > 0:
+            if working_df.shape[0] > 0 and working_df[working_df['response'] == 1].shape[0] > 0:
                 probabilities[f][r] = working_df[working_df['response'] == 1].shape[0] / working_df.shape[0]
             else:
                 probabilities[f][r] = 0
@@ -52,7 +52,8 @@ def negLogL(params, GivenData):
         probs = lapse + (1 - 2 * lapse) * norm.cdf(rod_orients, mus[f], sigmas[f])
         for r, rod in enumerate(rod_orients):
             curr_df = curr_df_f[(curr_df_f['rodOri'] == rod)]
-            negLogLikelihood += - binom.logpmf(curr_df[curr_df['response'] == 1].shape[0], curr_df['response'].shape[0], probs[r])
+            negLogLikelihood += - binom.logpmf(curr_df[curr_df['response'] == 1].shape[0], curr_df['response'].shape[0],
+                                               probs[r])
 
     return negLogLikelihood
 
@@ -79,20 +80,21 @@ def optimizeMSLPlot(df, plot=False):
     # mu is between -30 and 30, sigma is between 0.1 and 4 and lapse is between 0 and 0.5
     bnds = np.zeros((2 * nbFrames + 1), dtype=object)
     for i in range(nbFrames):
-        bnds[i] = (-10, 10)
+        # frame = (-10, 10), (0.1, 8), (0, 0.1)
+        # tilt15 = (-20, 20), (0.1, 8), (0, 0.1)
+        bnds[i] = (-20, 20)
         bnds[i + nbFrames] = (0.1, 8)
     bnds[nbFrames * 2] = (0, 0.1)
 
     # constrains every next sigma should be bigger or equal than the previous one, not smaller
-    # const = [{"type": "ineq", "fun": lambda param: param[nbFrames + 1] - param[nbFrames]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 2] - param[nbFrames + 1]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 3] - param[nbFrames + 2]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 4] - param[nbFrames + 3]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 5] - param[nbFrames + 4]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 6] - param[nbFrames + 5]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 7] - param[nbFrames + 6]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 8] - param[nbFrames + 7]},
-    #          {"type": "ineq", "fun": lambda param: param[nbFrames + 9] - param[nbFrames + 8]}]
+    const = [{"type": "ineq", "fun": lambda param: param[nbFrames + 1] - param[nbFrames]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 2] - param[nbFrames + 1]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 3] - param[nbFrames + 2]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 4] - param[nbFrames + 3]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 5] - param[nbFrames + 4]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 6] - param[nbFrames + 5]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 7] - param[nbFrames + 6]},
+             {"type": "ineq", "fun": lambda param: param[nbFrames + 8] - param[nbFrames + 7]}]
 
     # the initial parameter guesses are 0 for mu, 1 for sigma and 0.1 for lapse
     parameters = np.zeros((2 * nbFrames + 1))
@@ -100,41 +102,48 @@ def optimizeMSLPlot(df, plot=False):
     parameters[nbFrames:nbFrames * 2] = 2
     parameters[nbFrames * 2] = 0.05
 
-
     CW_results = minimize(negLogL, parameters, args=CWdata, bounds=bnds)
     print(f"Done with CW minimization the results are {CW_results.x}")
     CCW_results = minimize(negLogL, parameters, args=CCWdata, bounds=bnds)
     print(f"Done with CCW minimization the results are {CCW_results.x}")
 
-    if plot and nbFrames == 10:
+    if plot:
         CW_post_probs = createMatrixProb(CWdata)
         CCW_post_probs = createMatrixProb(CCWdata)
 
-        plt.subplots(5, 2, sharex='all', sharey='all', figsize=(12, 9))
+        # for condition 'frame' change (6, 3) to (5, 2)
+        fig, _ = plt.subplots(6, 3, sharex='all', sharey='all', figsize=(12, 9))
         rod_orients_all = np.sort(df.rodOri.unique())
         frame_orients_all = np.sort(df.frameOri.unique())
         for f, frame in enumerate(frame_orients_all):
-            plt.subplot(5, 2, f + 1)
-            plt.plot(rod_orients_all, CW_post_probs[(np.where(frame_orients_all == frame)[0][0])], "bo")
+            plt.subplot(6, 3, f + 1)
+            plt.plot(rod_orients_all, CW_post_probs[(np.where(frame_orients_all == frame)[0][0])], 'o', color="#77BAE4")
 
-            plt.plot(rod_orients_all, CCW_post_probs[(np.where(frame_orients_all == frame)[0][0])], "r.")
+            plt.plot(rod_orients_all, CCW_post_probs[(np.where(frame_orients_all == frame)[0][0])], '.', color="#E477AD")
 
-            lapseCW = CW_results.x[20]
+            lapseCW = CW_results.x[nbFrames * 2]
             plt.plot(rod_orients_all,
-                     lapseCW + (1 - 2 * lapseCW) * norm.cdf(rod_orients_all, CW_results.x[f], CW_results.x[f + 10]),
-                     "-b",
-                     label=f"CW mu {round(CW_results.x[f], 2)}, sigma {round(CW_results.x[f + 10], 2)}")
+                     lapseCW + (1 - 2 * lapseCW) * norm.cdf(rod_orients_all, CW_results.x[f], CW_results.x[f + nbFrames]),
+                     "#77BAE4",
+                     label=f"CW mu {round(CW_results.x[f], 2)}, sigma {round(CW_results.x[f + nbFrames], 2)}")
 
-            lapseCCW = CCW_results.x[20]
+            lapseCCW = CCW_results.x[nbFrames * 2]
             plt.plot(rod_orients_all,
-                     lapseCCW + (1 - 2 * lapseCCW) * norm.cdf(rod_orients_all, CCW_results.x[f], CCW_results.x[f + 10]),
-                     "--r",
-                     label=f"CCW mu {round(CCW_results.x[f], 2)}, sigma {round(CCW_results.x[f + 10], 2)}")
+                     lapseCCW + (1 - 2 * lapseCCW) * norm.cdf(rod_orients_all, CCW_results.x[f], CCW_results.x[f + nbFrames]),
+                     "#E477AD",
+                     label=f"CCW mu {round(CCW_results.x[f], 2)}, sigma {round(CCW_results.x[f + nbFrames], 2)}")
 
-            plt.legend(prop={'size': 10})
+            plt.legend(prop={'size': 8})
             plt.title(f"Frame {frame}")
             plt.tight_layout()
-        plt.savefig(f'plot{randrange(100000)}.png')
+
+        fig.add_subplot(111, frame_on=False)
+        plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+        plt.xlabel("Rod orientation in degrees")
+        plt.ylabel("P(CW)")
+        plt.savefig(f'plotTilt30-{randrange(100000)}.png')
+
     # returning mus and sigmas and lapses for CW and CCW
     return [CW_results.x, CCW_results.x]
 
@@ -154,6 +163,7 @@ def plotAllFramesGivenParticipant(participant, experimentType="frame", plot=Fals
     """
 
     # read in the data
+    # [-15. -10.  -5.  -2.   0.   2.   5.  10.  15.]
     data = pd.read_csv(f'Controls/c{participant}/c{participant}_{experimentType}.txt', skiprows=13, sep=" ")
     # remove the last two columns (these are reactionTime and ??)
     data.drop('reactionTime', inplace=True, axis=1)
@@ -172,11 +182,10 @@ def plotAllFramesGivenParticipant(participant, experimentType="frame", plot=Fals
                 data.at[i, 'response'] = data.at[i, 'response'] * -1
 
     nbFrames = len(np.sort(data.frameOri.unique()))
-
     resultingMusAndSigmas = optimizeMSLPlot(data, plot=plot)
 
-    musAndSigmasParticipant = [[resultingMusAndSigmas[0][i], resultingMusAndSigmas[0][i],
-                                resultingMusAndSigmas[0][i + nbFrames], resultingMusAndSigmas[0][i + nbFrames]]
+    musAndSigmasParticipant = [[resultingMusAndSigmas[0][i], resultingMusAndSigmas[1][i],
+                                resultingMusAndSigmas[0][i + nbFrames], resultingMusAndSigmas[1][i + nbFrames]]
                                for i in range(nbFrames)]
     # The lapse rates for CW nd CCW
     lapseParticipant = [resultingMusAndSigmas[0][nbFrames * 2], resultingMusAndSigmas[1][nbFrames * 2]]
@@ -188,10 +197,10 @@ class InitialAnalysis:
 
         self.nbParticipants = nbParticipants
         if experimentType == 'frame':
-            # 16 participants, 10 frames, mu and sigma for CW and mu and sigma for CCW
+            # 16 participants, 10 frames, mu CW, mu CCW, sigma CW and sigma CCW
             self.musAndSigmas = np.zeros((nbParticipants, 10, 4))
         else:
-            # 16 participants, 18 frames, mu and sigma for CW and mu and sigma for CCW
+            # 16 participants, 18 frames, mu CW, mu CCW, sigma CW and sigma CCW
             self.musAndSigmas = np.zeros((nbParticipants, 18, 4))
 
         self.lapses = np.zeros((nbParticipants, 2))
