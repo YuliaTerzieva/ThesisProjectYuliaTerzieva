@@ -20,8 +20,17 @@ import numpy as np
 # print(np.sum(test))
 # print(np.sum(test[2:]))
 
-head_space_orients = np.linspace(-180, 180, 361)
+# head_space_orients = np.linspace(-180, 180, 361)
+#
+# print(np.linspace(-45, 40, 18))
+# # print(head_space_orients)
+# print(np.where(head_space_orients == 0))
 
-print(np.linspace(-45, 40, 18))
-# print(head_space_orients)
-print(np.where(head_space_orients == 0))
+
+data = pd.read_csv(f'Controls/c{10}/c{10}_tilt30.txt', skiprows=13, sep=" ")
+# remove the last two columns (these are reactionTime and ??)
+data.drop('reactionTime', inplace=True, axis=1)
+data.drop('Unnamed: 4', inplace=True, axis=1)
+
+rod_orients_all = np.sort(data.rodOri.unique())
+print(rod_orients_all)

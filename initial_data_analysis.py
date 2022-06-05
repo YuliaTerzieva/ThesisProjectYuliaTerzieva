@@ -80,8 +80,6 @@ def optimizeMSLPlot(df, plot=False):
     # mu is between -30 and 30, sigma is between 0.1 and 4 and lapse is between 0 and 0.5
     bnds = np.zeros((2 * nbFrames + 1), dtype=object)
     for i in range(nbFrames):
-        # frame = (-10, 10), (0.1, 8), (0, 0.1)
-        # tilt15 = (-20, 20), (0.1, 8), (0, 0.1)
         bnds[i] = (-20, 20)
         bnds[i + nbFrames] = (0.1, 8)
     bnds[nbFrames * 2] = (0, 0.1)
