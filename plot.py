@@ -170,25 +170,22 @@ def plotFigureBiasesAndVar():
         CWdata = dataframe[dataframe['pre_response'] == 0]
         CCWdata = dataframe[dataframe['pre_response'] == 1]
 
-        stdCW = [CWdata[CWdata['frame_orientation'] == f]['mu'].std() for f in frames]
-        stdCCW = [CCWdata[CCWdata['frame_orientation'] == f]['mu'].std() for f in frames]
-
-        print(CWdata.details())
-        print(CCWdata.details())
-        print(stdCW)
-        print(stdCCW)
+        SECW = [CWdata[CWdata['frame_orientation'] == f]['mu'].sem() for f in frames]
+        SECCW = [CCWdata[CCWdata['frame_orientation'] == f]['mu'].sem() for f in frames]
 
         CWdataPF = CWdata.groupby('frame_orientation').mean()
         CCWdataPF = CCWdata.groupby('frame_orientation').mean()
 
         plt.subplot(2, 3, d + 1)
         plt.plot(frames, CWdataPF['mu'], label=f"CW", color="#77BAE4")
-        plt.fill_between(frames, CWdataPF['mu'] + stdCW, CWdataPF['mu'] - stdCW, color="#77BAE4", alpha=0.3)
+        plt.fill_between(frames, CWdataPF['mu'] + SECW, CWdataPF['mu'] - SECW, color="#77BAE4", alpha=0.2, label="CW SE")
         plt.plot(frames, CCWdataPF['mu'], label=f"CCW", color="#E477AD")
-        plt.fill_between(frames, CCWdataPF['mu'] + stdCCW, CCWdataPF['mu'] - stdCCW, color="#E477AD", alpha=0.3)
-        plt.ylim((-8, 8))
+        plt.fill_between(frames, CCWdataPF['mu'] + SECCW, CCWdataPF['mu'] - SECCW, color="#E477AD", alpha=0.2, label="CCW SE")
+        plt.ylim((-9, 9))
         if d == 0:
             plt.ylabel("Bias ( mu )")
+        if d == 2:
+            plt.legend(prop={'size': 8})
         plt.title(datanames[d])
 
         difference = CCWdataPF['mu'] - CWdataPF['mu']
@@ -204,7 +201,7 @@ def plotFigureBiasesAndVar():
 
     plt.legend(prop={'size': 8})
     plt.tight_layout()
-    # plt.savefig("BiasAdVariabilityWithOutConstFrame1530")
+    plt.savefig("BiasAdVariabilityWithOutConstFrame1530")
     plt.show()
 
 
@@ -258,4 +255,4 @@ def anovaAnalysisVersionTwo():
         print(aov[['Source', 'F', 'np2']])
 
 
-plotFigureBiasesAndVar()
+
