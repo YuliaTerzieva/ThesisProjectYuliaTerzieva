@@ -34,8 +34,7 @@ def createMatrixProb(dataframe):
 
 def negLogL(params, GivenData):
     """ This function is a helper one used by scipy.optimize.minimize for a psychometric curve fitting
-    :param params: This is array of 21 or 37 values depending on the number of frames
-                   10/18 mu, 10/18 sigma and 1 lapse rate that we want to optimize
+    :param params: This is array of 37 values 18 mu, 18 sigma and 1 lapse rate that we want to optimize
     :param GivenData: the dataframe with {frame orientations, rod orientations, response - CW or CCW}
     :return: the negative log likelihood of the data given the parameters
     """
@@ -58,13 +57,66 @@ def negLogL(params, GivenData):
     return negLogLikelihood
 
 
-def optimizeMSLPlot(df, plot=False):
+def plotAndSave(CWdata, CCWdata, CW_results, CCW_results, experimentType='frame'):
+    """
+    This function plots and saves the data and the psychometric curves for all frame orientations
+    for a given participant and head orientation (experiment type) and saves it.
+    :param CWdata: the trials with previous CW response
+    :param CCWdata: the trials with previous CCW response
+    :param CW_results: the mu and sigmas for every frame orientation for the CW dataset
+    :param CCW_results: the mu and sigmas for every frame orientation for the CCW dataset
+    :param experimentType: head orientation string -> can be "frame", "tilt15", "tilt30"
+    """
+    CW_post_probs = createMatrixProb(CWdata)
+    CCW_post_probs = createMatrixProb(CCWdata)
+
+    rod_orients_all = np.sort(CWdata.rodOri.unique())
+    frame_orients_all = np.sort(CWdata.frameOri.unique())
+    nbFrames = len(frame_orients_all)
+
+    fig, _ = plt.subplots(6, 3, sharex='all', sharey='all', figsize=(12, 9))
+
+    for f, frame in enumerate(frame_orients_all):
+        plt.subplot(6, 3, f + 1)
+        plt.plot(rod_orients_all, CW_post_probs[(np.where(frame_orients_all == frame)[0][0])], 'o', color="#77BAE4")
+
+        plt.plot(rod_orients_all, CCW_post_probs[(np.where(frame_orients_all == frame)[0][0])], '.',
+                 color="#E477AD")
+
+        lapseCW = CW_results.x[nbFrames * 2]
+        plt.plot(rod_orients_all,
+                 lapseCW + (1 - 2 * lapseCW) * norm.cdf(rod_orients_all, CW_results.x[f],
+                                                        CW_results.x[f + nbFrames]),
+                 "#77BAE4",
+                 label=f"CW mu {round(CW_results.x[f], 2)}, sigma {round(CW_results.x[f + nbFrames], 2)}")
+
+        lapseCCW = CCW_results.x[nbFrames * 2]
+        plt.plot(rod_orients_all,
+                 lapseCCW + (1 - 2 * lapseCCW) * norm.cdf(rod_orients_all, CCW_results.x[f],
+                                                          CCW_results.x[f + nbFrames]),
+                 "#E477AD",
+                 label=f"CCW mu {round(CCW_results.x[f], 2)}, sigma {round(CCW_results.x[f + nbFrames], 2)}")
+
+        plt.legend(prop={'size': 8})
+        plt.title(f"Frame {frame}")
+        plt.tight_layout()
+
+    fig.add_subplot(111, frame_on=False)
+    plt.tick_params(labelcolor="none", bottom=False, left=False)
+
+    plt.xlabel("Rod orientation in degrees")
+    plt.ylabel("P(CW)")
+    plt.savefig(f'plot{experimentType}-{randrange(100000)}.png')
+
+
+def optimizeMSLPlot(df, experimentType="frame", plot=False):
     """
     This function finds the optimal parameters - mu and sigma for the construction of a psychometric curve
     over the two cases (CW and CCW previous response) for each frame orientation
     :param df: the dataset of a given participant
+    :param experimentType: string -> can be "frame", "tilt15", "tilt30"
     :param plot: boolean variable - if True there are plots created and saved
-    :return: an array of 2 x 21 where we have 10 mus, 10 sigmas and 1 lapse for CW and CCW case
+    :return: an array of 2 x 37 where we have 18 mus, 18 sigmas and 1 lapse for CW and CCW case
     """
     # Separating the dataset based on CW and CCW responses on n-1
     CW_index = df.index[df['response'] == 1].tolist()
@@ -76,25 +128,16 @@ def optimizeMSLPlot(df, plot=False):
     CWdata = df.iloc[CW_next_index]
     CCWdata = df.iloc[CCW_next_index]
 
-    nbFrames = len(np.sort(df.frameOri.unique()))
-    # mu is between -30 and 30, sigma is between 0.1 and 4 and lapse is between 0 and 0.5
+    nbFrames = 18
+
+    # mu is between -20 and 20, sigma is between 0.1 and 8 and lapse is between 0 and 0.1
     bnds = np.zeros((2 * nbFrames + 1), dtype=object)
     for i in range(nbFrames):
         bnds[i] = (-20, 20)
         bnds[i + nbFrames] = (0.1, 8)
     bnds[nbFrames * 2] = (0, 0.1)
 
-    # constrains every next sigma should be bigger or equal than the previous one, not smaller
-    const = [{"type": "ineq", "fun": lambda param: param[nbFrames + 1] - param[nbFrames]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 2] - param[nbFrames + 1]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 3] - param[nbFrames + 2]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 4] - param[nbFrames + 3]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 5] - param[nbFrames + 4]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 6] - param[nbFrames + 5]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 7] - param[nbFrames + 6]},
-             {"type": "ineq", "fun": lambda param: param[nbFrames + 8] - param[nbFrames + 7]}]
-
-    # the initial parameter guesses are 0 for mu, 1 for sigma and 0.1 for lapse
+    # the initial parameter guesses are 0 for mu, 1 for sigma and 0.05 for lapse
     parameters = np.zeros((2 * nbFrames + 1))
     parameters[0:nbFrames] = 0
     parameters[nbFrames:nbFrames * 2] = 2
@@ -106,41 +149,7 @@ def optimizeMSLPlot(df, plot=False):
     print(f"Done with CCW minimization the results are {CCW_results.x}")
 
     if plot:
-        CW_post_probs = createMatrixProb(CWdata)
-        CCW_post_probs = createMatrixProb(CCWdata)
-
-        # for condition 'frame' change (6, 3) to (5, 2)
-        fig, _ = plt.subplots(6, 3, sharex='all', sharey='all', figsize=(12, 9))
-        rod_orients_all = np.sort(df.rodOri.unique())
-        frame_orients_all = np.sort(df.frameOri.unique())
-        for f, frame in enumerate(frame_orients_all):
-            plt.subplot(6, 3, f + 1)
-            plt.plot(rod_orients_all, CW_post_probs[(np.where(frame_orients_all == frame)[0][0])], 'o', color="#77BAE4")
-
-            plt.plot(rod_orients_all, CCW_post_probs[(np.where(frame_orients_all == frame)[0][0])], '.', color="#E477AD")
-
-            lapseCW = CW_results.x[nbFrames * 2]
-            plt.plot(rod_orients_all,
-                     lapseCW + (1 - 2 * lapseCW) * norm.cdf(rod_orients_all, CW_results.x[f], CW_results.x[f + nbFrames]),
-                     "#77BAE4",
-                     label=f"CW mu {round(CW_results.x[f], 2)}, sigma {round(CW_results.x[f + nbFrames], 2)}")
-
-            lapseCCW = CCW_results.x[nbFrames * 2]
-            plt.plot(rod_orients_all,
-                     lapseCCW + (1 - 2 * lapseCCW) * norm.cdf(rod_orients_all, CCW_results.x[f], CCW_results.x[f + nbFrames]),
-                     "#E477AD",
-                     label=f"CCW mu {round(CCW_results.x[f], 2)}, sigma {round(CCW_results.x[f + nbFrames], 2)}")
-
-            plt.legend(prop={'size': 8})
-            plt.title(f"Frame {frame}")
-            plt.tight_layout()
-
-        fig.add_subplot(111, frame_on=False)
-        plt.tick_params(labelcolor="none", bottom=False, left=False)
-
-        plt.xlabel("Rod orientation in degrees")
-        plt.ylabel("P(CW)")
-        plt.savefig(f'plotTilt30-{randrange(100000)}.png')
+        plotAndSave(CWdata, CCWdata, CW_results, CCW_results, experimentType=experimentType)
 
     # returning mus and sigmas and lapses for CW and CCW
     return [CW_results.x, CCW_results.x]
@@ -149,39 +158,24 @@ def optimizeMSLPlot(df, plot=False):
 def plotAllFramesGivenParticipant(participant, experimentType="frame", plot=False):
     """
     This function loads the data for the given participant,
-    subsequently if the experiment type is 'frame' it flips the negative frames
-    of -45, -40, -35, -30, -25, -20, -15, -10, -5 to positive and also flips the rod orientation and
-    response for each instance. If it is not 'frame' it skips this step.
-    For each of the resulting 10/18 frame orientation makes a plot with
-    psychometric curves for CW vs CCW previous response
+    Finds the optimal mu and sigma for every frame orientation and for previous CW and CCW response
+    and save them in a matrix and returns them together with the lapse rates.
     :param participant: a number between 1 and 16 (including)
     :param experimentType: string -> can be "frame", "tilt15", "tilt30"
     :param plot: boolean - when True -> psychometric curves are plotted and saved
     :return: one vector - mus and sigma for CW and CCW - and a lapse rate for the given participant
     """
 
-    # read in the data
-    # [-15. -10.  -5.  -2.   0.   2.   5.  10.  15.]
     data = pd.read_csv(f'Controls/c{participant}/c{participant}_{experimentType}.txt', skiprows=13, sep=" ")
     # remove the last two columns (these are reactionTime and ??)
     data.drop('reactionTime', inplace=True, axis=1)
     data.drop('Unnamed: 4', inplace=True, axis=1)
 
-    if experimentType == "frame":
-        rod_orients_all = np.sort(data.rodOri.unique())
-        gravityRod = sum(rod_orients_all) / len(rod_orients_all)
-        frame_orients_all = np.sort(data.frameOri.unique())
-        frames = [0, 5, 10, 15, 20, 25, 30, 35, 40]
-        for toBeFlipped in list(set(frame_orients_all) - set(frames)):
-            indices = data.index[data['frameOri'] == toBeFlipped].tolist()
-            for i in indices:
-                data.at[i, 'frameOri'] = toBeFlipped * -1
-                data.at[i, 'rodOri'] = round(2 * gravityRod - data.at[i, 'rodOri'], 1)
-                data.at[i, 'response'] = data.at[i, 'response'] * -1
+    nbFrames = len(data.frameOri.unique())
 
-    nbFrames = len(np.sort(data.frameOri.unique()))
-    resultingMusAndSigmas = optimizeMSLPlot(data, plot=plot)
+    resultingMusAndSigmas = optimizeMSLPlot(data, experimentType=experimentType, plot=plot)
 
+    # musAndSigmasParticipant = 18 rows with -> for each frame -> mu CW, mu CCW, sigma CW, sigma CCW
     musAndSigmasParticipant = [[resultingMusAndSigmas[0][i], resultingMusAndSigmas[1][i],
                                 resultingMusAndSigmas[0][i + nbFrames], resultingMusAndSigmas[1][i + nbFrames]]
                                for i in range(nbFrames)]
@@ -192,17 +186,12 @@ def plotAllFramesGivenParticipant(participant, experimentType="frame", plot=Fals
 
 class InitialAnalysis:
     def __init__(self, nbParticipants, experimentType, plots=False):
-
         self.nbParticipants = nbParticipants
-        if experimentType == 'frame':
-            # 16 participants, 10 frames, mu CW, mu CCW, sigma CW and sigma CCW
-            self.musAndSigmas = np.zeros((nbParticipants, 10, 4))
-        else:
-            # 16 participants, 18 frames, mu CW, mu CCW, sigma CW and sigma CCW
-            self.musAndSigmas = np.zeros((nbParticipants, 18, 4))
 
+        # 16 participants, 18 frames, mu CW, mu CCW, sigma CW and sigma CCW
+        self.musAndSigmas = np.zeros((nbParticipants, 18, 4))
         self.lapses = np.zeros((nbParticipants, 2))
+
         for s in range(1, nbParticipants + 1):
-            self.musAndSigmas[s - 1], self.lapses[s - 1] = plotAllFramesGivenParticipant(s, experimentType,
-                                                                                         plot=plots)
+            self.musAndSigmas[s - 1], self.lapses[s - 1] = plotAllFramesGivenParticipant(s, experimentType, plot=plots)
             print(f"Done with participant {s}")

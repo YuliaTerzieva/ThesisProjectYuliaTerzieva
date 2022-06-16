@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import pingouin as pg
 from scipy.stats import binom
 from scipy.optimize import minimize
 from scipy.interpolate import make_interp_spline
 from VisualVestibularVerticalityModel import VisualVestibularVerticalityModel
 from statsmodels.stats.anova import AnovaRM
-from initial_data_analysis import createMatrixProb
 
 
 def negLogL(params, GivenData):
@@ -33,9 +33,14 @@ def negLogL(params, GivenData):
     return negLogLikelihood
 
 
-def modelFitting():
-    participant = 7
-    experimentType = 'frame'
+def modelFitting(participant, experimentType):
+    """
+    Toy example of parameter estimation for the model
+    :param participant: integer from 1 to 16 incl.
+    :param experimentType: string -> can be "frame", "tilt15", "tilt30"
+    :return: estimated parameters
+    """
+
     data = pd.read_csv(f'Controls/c{participant}/c{participant}_{experimentType}.txt', skiprows=13, sep=" ")
     data.drop('reactionTime', inplace=True, axis=1)
     data.drop('Unnamed: 4', inplace=True, axis=1)
@@ -46,12 +51,17 @@ def modelFitting():
 
     result = minimize(negLogL, parameters, args=data, bounds=bnds)
 
-    print(result)
-    print(result.x)
-    print(type(result.x))
+    return result.x
 
 
-def plotsFigurePost():
+def plotsFigurePosterior():
+    """
+    This function creates Figure 2.2 from the thesis, where
+    model00 represents head at 0, frame at 0
+    model300 represents head at 30, frame at 0
+    model020 represents head at 0, frame at 20
+    Parameters used in the model are from Alberts at al. 2016
+    """
     model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
@@ -98,6 +108,13 @@ def plotsFigurePost():
 
 
 def plotsFigureCW():
+    """
+        This function creates Figure 2.3 from the thesis, where
+        model00 represents head at 0, frame at 0
+        model300 represents head at 30, frame at 0
+        model020 represents head at 0, frame at 20
+        Parameters used in the model are from Alberts at al. 2016
+    """
     model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
     model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
@@ -113,6 +130,11 @@ def plotsFigureCW():
 
 
 def plotsFigureCWPSE():
+    """
+        This function creates Figure 2.4 from the thesis, where
+        Parameters used in the model are from Alberts at al. 2016
+    """
+
     frames = [-45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40]
     biases = np.zeros(18)
 
@@ -120,12 +142,8 @@ def plotsFigureCWPSE():
         model_curr = VisualVestibularVerticalityModel([0, frame, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
         rods = np.linspace(-15, 15, 201)
         curve = model_curr.getCWProbability(rods)
-        # plt.plot(rods, curve, label=f"Frame {frame}")
         biases[f] = rods[(np.abs(curve - 0.5)).argmin()]
 
-    # plt.xlim((-6, 10))
-    # plt.legend()
-    # plt.show()
     frames_new = np.linspace(-45, 40, 300)
     bias_smooth = make_interp_spline(frames, biases, k=3)
     plt.plot(frames_new, bias_smooth(frames_new), '#B081D9', label="Head 0, Frame 0")
@@ -136,57 +154,69 @@ def plotsFigureCWPSE():
 
 
 def plotFigureBiasesAndVar():
+    """
+        This function creates Figure 4.4 from the thesis
+    """
+
     dataframe0 = pd.read_pickle("NoTiltPlotsAndData/data-Frame-01-06-frame-18-frames")
     dataframe15 = pd.read_pickle("Tilt15PlotsAndData/data-Frame-31-05-With-Const-tilt15")
     dataframe30 = pd.read_pickle("Tilt30PlotsAndData/data-Frame-01-06-tilt30")
+
     data = [dataframe0, dataframe15, dataframe30]
     datanames = ['Head at 0', "Head at 15", "Head at 30"]
     plt.subplots(2, 3)
     frames = [-45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40]
     for d, dataframe in enumerate(data):
-        CWdata = dataframe[dataframe['pre_response'] == 1]
-        CCWdata = dataframe[dataframe['pre_response'] == 0]
+        CWdata = dataframe[dataframe['pre_response'] == 0]
+        CCWdata = dataframe[dataframe['pre_response'] == 1]
+
+        stdCW = [CWdata[CWdata['frame_orientation'] == f]['mu'].std() for f in frames]
+        stdCCW = [CCWdata[CCWdata['frame_orientation'] == f]['mu'].std() for f in frames]
+
+        print(CWdata.details())
+        print(CCWdata.details())
+        print(stdCW)
+        print(stdCCW)
 
         CWdataPF = CWdata.groupby('frame_orientation').mean()
         CCWdataPF = CCWdata.groupby('frame_orientation').mean()
 
         plt.subplot(2, 3, d + 1)
-        plt.plot(frames, CWdataPF['mu'], color="#77BAE4")
-        plt.plot(frames, CCWdataPF['mu'], color="#E477AD")
+        plt.plot(frames, CWdataPF['mu'], label=f"CW", color="#77BAE4")
+        plt.fill_between(frames, CWdataPF['mu'] + stdCW, CWdataPF['mu'] - stdCW, color="#77BAE4", alpha=0.3)
+        plt.plot(frames, CCWdataPF['mu'], label=f"CCW", color="#E477AD")
+        plt.fill_between(frames, CCWdataPF['mu'] + stdCCW, CCWdataPF['mu'] - stdCCW, color="#E477AD", alpha=0.3)
+        plt.ylim((-8, 8))
         if d == 0:
             plt.ylabel("Bias ( mu )")
         plt.title(datanames[d])
 
+        difference = CCWdataPF['mu'] - CWdataPF['mu']
+        print(f"Mean difference for {datanames[d]} is {difference.mean()}")
+
         plt.subplot(2, 3, d + 4)
         plt.plot(frames, CWdataPF['sigma'], label=f"CW", color="#77BAE4")
         plt.plot(frames, CCWdataPF['sigma'], label=f"CCW", color="#E477AD")
+        plt.ylim((1.5, 7))
         if d == 0:
             plt.ylabel("Variability ( sigma )")
         plt.xlabel("Frame orientation")
 
     plt.legend(prop={'size': 8})
     plt.tight_layout()
+    # plt.savefig("BiasAdVariabilityWithOutConstFrame1530")
     plt.show()
-
-    masterDataSet = pd.concat(data)
-    condition = np.concatenate(([0] * 576, [15] * 576, [30] * 576))
-    masterDataSet['condition'] = condition
-    # print(masterDataSet)
-    # print(masterDataSet.describe())
-
-    aov = AnovaRM(masterDataSet,
-                  depvar='mu',
-                  subject='nr',
-                  within=['pre_response', 'frame_orientation', 'condition']).fit()
-    print(aov)
 
 
 def anovaAnalysis():
-    dataframe0 = pd.read_pickle("data-Frame-01-06-frame-10-frames")
-    dataframe0free = pd.read_pickle("NoTiltPlotsAndData/data-Frame-01-06-frame-18-frames")
+    """
+        This function creates all the tables from the thesis.
+    """
+
+    dataframe0 = pd.read_pickle("NoTiltPlotsAndData/data-Frame-01-06-frame-18-frames")
     dataframe15 = pd.read_pickle("Tilt15PlotsAndData/data-Frame-31-05-With-Const-tilt15")
     dataframe30 = pd.read_pickle("Tilt30PlotsAndData/data-Frame-01-06-tilt30")
-    data = [dataframe0, dataframe0free, dataframe15, dataframe30]
+    data = [dataframe0, dataframe15, dataframe30]
     datanames = ['Head at 0 with Const', 'Head at 0 no Const', "Head at 15", "Head at 30"]
 
     for d, dataframe in enumerate(data):
@@ -197,7 +227,7 @@ def anovaAnalysis():
                       within=['pre_response', 'frame_orientation']).fit()
         print(aov)
 
-    masterDataSet = pd.concat(data[1:])
+    masterDataSet = pd.concat(data[:])
     condition = np.concatenate(([0] * 576, [15] * 576, [30] * 576))
     masterDataSet['condition'] = condition
     aov = AnovaRM(masterDataSet,
@@ -207,62 +237,25 @@ def anovaAnalysis():
     print(aov)
 
 
-def compare0():
-    dataframe0 = pd.read_pickle("data-Frame-01-06-frame-10-frames")
+def anovaAnalysisVersionTwo():
+    """
+        I used pingouin Anova for obtaining the "partial ete square effect size"
+        Unfortunately three-way anova is not supported.
+    """
     dataframe0free = pd.read_pickle("NoTiltPlotsAndData/data-Frame-01-06-frame-18-frames")
-    data = [dataframe0, dataframe0free]
-    datanames = ['Head at 0 with const', 'Head at 0 no const']
-    plt.subplots(2, 1)
-    framesConst = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]
-    framesNoConst = [-45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40]
-    frames = [framesConst, framesNoConst]
+    dataframe15 = pd.read_pickle("Tilt15PlotsAndData/data-Frame-31-05-With-Const-tilt15")
+    dataframe30 = pd.read_pickle("Tilt30PlotsAndData/data-Frame-01-06-tilt30")
+    data = [dataframe0free, dataframe15, dataframe30]
+    datanames = ['Head at 0', "Head at 15", "Head at 30"]
+
     for d, dataframe in enumerate(data):
-        CWdata = dataframe[dataframe['pre_response'] == 1]
-        CCWdata = dataframe[dataframe['pre_response'] == 0]
+        print(f"Analysis for {datanames[d]}")
+        aov = pg.rm_anova(dataframe,
+                          dv='mu',
+                          within=['pre_response', 'frame_orientation'],
+                          subject='nr', detailed=True)
 
-        CWdataPF = CWdata.groupby('frame_orientation').mean()
-        CCWdataPF = CCWdata.groupby('frame_orientation').mean()
-
-        plt.subplot(2, 1, 1)
-        plt.plot(frames[d], CWdataPF['mu'], label=f"CW")#, color="#77BAE4")
-        plt.plot(frames[d], CCWdataPF['mu'], label=f"CCW")#, color="#E477AD")
-        if d == 0:
-            plt.ylabel("Bias ( mu )")
-        plt.title(datanames[d])
-
-        plt.subplot(2, 1, 2)
-        plt.plot(frames[d], CWdataPF['sigma'], label=f"CW")#, color="#77BAE4")
-        plt.plot(frames[d], CCWdataPF['sigma'], label=f"CCW")#, color="#E477AD")
-        if d == 0:
-            plt.ylabel("Variability ( sigma )")
-        plt.xlabel("Frame orientation")
-
-    plt.legend(prop={'size': 8})
-    plt.tight_layout()
-    plt.show()
+        print(aov[['Source', 'F', 'np2']])
 
 
-compare0()
-###### TEST STUFF, PRINTING PROBS FOR TEST #######
-# data = pd.read_csv('Controls/c7/c7_frame.txt', skiprows=13, sep=" ")
-# data.drop('reactionTime', inplace=True, axis=1)
-# data.drop('Unnamed: 4', inplace=True, axis=1)
-# model00 = VisualVestibularVerticalityModel([0, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-# model300 = VisualVestibularVerticalityModel([30, 0, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-# model020 = VisualVestibularVerticalityModel([0, 20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-# model3020 = VisualVestibularVerticalityModel([30, -20, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-#
-# matrix = createMatrixProb(data)
-# rod_orients_all = np.sort(data.rodOri.unique())
-# frame_orients_all = np.sort(data.frameOri.unique())
-# rods = np.linspace(-15, 15, 101)
-#
-# for frame in frame_orients_all :
-#     cur_mod = VisualVestibularVerticalityModel([0, frame, 6.5, 0.07, 2.21, 4.87, 52.26, 0.8, 0.1])
-#     plt.plot(rods, cur_mod.getCWProbability(rods))
-#     print(np.where(frame_orients_all == -20))
-#     plt.plot(rod_orients_all, matrix[(np.where(frame_orients_all == -20)[0][0])], 'ro')
-#     plt.xlabel("Rod orientations")
-#     plt.ylabel("P(CW | rod)")
-#     plt.title(f"Head 0, Frame {frame}")
-#     plt.show()
+plotFigureBiasesAndVar()

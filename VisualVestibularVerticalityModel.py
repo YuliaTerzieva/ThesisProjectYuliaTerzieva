@@ -54,8 +54,8 @@ class VisualVestibularVerticalityModel:
         """ Function computing the head in space prior
 
         This function is in degrees
-        Based on information from page 4 we assume that the brain uses prior knowledge
-        that our head id usually upright, thus at 0 degrees
+        It is assumed that the brain uses prior knowledge that our head id usually upright,
+        thus the distribution is centered around 0 degrees
         """
         self.head_space_prior = norm.pdf(self.head_space_orients, 0, self.sigma_hp)
 
@@ -63,7 +63,8 @@ class VisualVestibularVerticalityModel:
         """ Function computing the vestibular likelihood
 
         This function is in degrees.
-        Based on formula (2) the variability sigma_hs is computed.
+        Vestibular Likelihood modelled by a Gaussian centered around the true head position
+        with linearly increasing uncertainty with head tilt
         """
         sigma_hs = self.alpha_hs * abs(self.H_true) + self.beta_hs
         self.vest_likelihood = norm.pdf(self.head_space_orients, self.H_true, sigma_hs)
@@ -74,7 +75,7 @@ class VisualVestibularVerticalityModel:
         This function is in radians.
         The VonMisses function works with radians, thus we initially convert all necessary variables
         from degrees to radians and then compute the likelihood. Before the function is done the resultant
-        likelihood is again transformed into degrees
+        likelihood is again transformed into degrees.
         """
         F_rad = np.radians(self.F_true)
         H_rad = np.radians(self.H_true)
@@ -99,8 +100,8 @@ class VisualVestibularVerticalityModel:
         """ Function calculating the head in space posterior
 
         This function is in degrees
-        The posterior is obtained from multiplication of the likelihoods with the prior and
-        it is subsequently normalized
+        The posterior is obtained from multiplication of the likelihoods with the prior.
+        The posterior is subsequently normalized
         """
         self.head_in_space_prior()
         self.vestibular_likelihood()
@@ -126,34 +127,34 @@ class VisualVestibularVerticalityModel:
         rod_prob = 1 - self.head_space_post_cdf_interp(fromWhereToSum)
         return rod_prob
 
-    def plot(self):
-        self.head_in_space_posterior()
-
-        plt.subplots(2, 2)
-
-        plt.subplot(2, 2, 1)
-        plt.plot(self.head_space_orients, self.head_space_prior)
-        plt.xlim(- 20, 20)
-        plt.title("Head-in-space prior")
-
-        plt.subplot(2, 2, 2)
-        plt.plot(self.head_space_orients, self.vest_likelihood)
-        plt.xlim(self.H_true - 20, self.H_true + 20)
-        plt.title(f"Vestibular likelihood for Head {self.H_true}")
-
-        plt.subplot(2, 2, 3)
-        plt.plot(self.head_space_orients, self.cont_likelihood)
-        plt.title(f"Contextual likelihood for Frame {self.F_true}")
-
-        plt.subplot(2, 2, 4)
-        plt.plot(self.head_space_orients, self.head_space_post)
-        plt.xlim(self.H_true - 20, self.H_true + 20)
-        plt.title("Head-in-space posterior")
-        plt.tight_layout()
-        plt.show()
-
-        rods = np.linspace(-15, 15, 101)
-        plt.plot(rods, self.getCWProbability(rods))
-        plt.xlabel("Rod orientations")
-        plt.ylabel("P(CW | rod)")
-        plt.show()
+    # def plot(self):
+    #     self.head_in_space_posterior()
+    #
+    #     plt.subplots(2, 2)
+    #
+    #     plt.subplot(2, 2, 1)
+    #     plt.plot(self.head_space_orients, self.head_space_prior)
+    #     plt.xlim(- 20, 20)
+    #     plt.title("Head-in-space prior")
+    #
+    #     plt.subplot(2, 2, 2)
+    #     plt.plot(self.head_space_orients, self.vest_likelihood)
+    #     plt.xlim(self.H_true - 20, self.H_true + 20)
+    #     plt.title(f"Vestibular likelihood for Head {self.H_true}")
+    #
+    #     plt.subplot(2, 2, 3)
+    #     plt.plot(self.head_space_orients, self.cont_likelihood)
+    #     plt.title(f"Contextual likelihood for Frame {self.F_true}")
+    #
+    #     plt.subplot(2, 2, 4)
+    #     plt.plot(self.head_space_orients, self.head_space_post)
+    #     plt.xlim(self.H_true - 20, self.H_true + 20)
+    #     plt.title("Head-in-space posterior")
+    #     plt.tight_layout()
+    #     plt.show()
+    #
+    #     rods = np.linspace(-15, 15, 101)
+    #     plt.plot(rods, self.getCWProbability(rods))
+    #     plt.xlabel("Rod orientations")
+    #     plt.ylabel("P(CW | rod)")
+    #     plt.show()
