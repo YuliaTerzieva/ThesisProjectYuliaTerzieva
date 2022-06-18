@@ -1,5 +1,5 @@
 ## Bachelor Thesis 18-Jun-2022 
-# Serial dependence in Verticality perception
+# Serial Dependence in Verticality Perception
 
 The implementation of the model by Alberts et al. (2016) is in file VisualVestibularVeticalityModel.py. 
 
